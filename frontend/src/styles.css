@@ -1,0 +1,32 @@
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-background text-ink font-sans antialiased;
+  }
+  button, input, select, textarea {
+    font: inherit;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply rounded-2xl border border-white/70 bg-white/80 shadow-soft backdrop-blur-xl;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-bold text-white shadow-soft transition hover:-translate-y-0.5 active:scale-95 disabled:opacity-60;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-full border border-outline bg-white px-5 py-3 text-sm font-bold text-primary transition hover:bg-surface-low active:scale-95;
+  }
+  .field {
+    @apply w-full rounded-xl border border-outline bg-surface-low px-4 py-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20;
+  }
+  .icon-btn {
+    @apply inline-flex h-11 w-11 items-center justify-center rounded-full bg-surface-low text-primary transition hover:bg-surface-high active:scale-95;
+  }
+}
