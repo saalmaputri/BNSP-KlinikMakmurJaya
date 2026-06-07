@@ -86,3 +86,6 @@ class StockService:
 
     def expired_soon(self, days: int = 90):
         return self.repo.expired_soon(days)
+
+    def list_batches_with_expiry(self):
+        return self.repo.list_batches_with_expiry()

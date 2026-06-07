@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
@@ -10,6 +10,8 @@ class RegisterRequest(BaseModel):
     full_name: str = Field(min_length=2, max_length=150)
     email: EmailStr
     phone: str | None = None
+    date_of_birth: date | None = None
+    gender: str | None = None
     password: str = Field(min_length=8)
     address: str | None = None
 
@@ -25,6 +27,14 @@ class RegisterRequest(BaseModel):
     @classmethod
     def normalize_email(cls, value: EmailStr) -> str:
         return str(value).strip().lower()
+
+    @field_validator("phone", "gender", "address")
+    @classmethod
+    def strip_optional_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        return cleaned or None
 
 
 class LoginRequest(BaseModel):
@@ -51,6 +61,9 @@ class UserResponse(ORMModel):
     full_name: str
     email: EmailStr
     phone: str | None
+    date_of_birth: date | None
+    gender: str | None
+    address: str | None
     status: str
     email_verified_at: datetime | None
     role_code: str | None = None

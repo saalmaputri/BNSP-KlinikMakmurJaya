@@ -12,10 +12,28 @@ class OrderRepository(BaseRepository[Order]):
     model = Order
 
     def get_with_items(self, order_id: UUID) -> Order | None:
-        return self.db.scalar(select(Order).options(joinedload(Order.items), joinedload(Order.payments)).where(Order.id == order_id))
+        return self.db.execute(
+            select(Order)
+            .options(joinedload(Order.items), joinedload(Order.payments))
+            .where(Order.id == order_id)
+        ).unique().scalar_one_or_none()
+
+    def get_by_order_number(self, order_number: str) -> Order | None:
+        return self.db.execute(
+            select(Order)
+            .options(joinedload(Order.items), joinedload(Order.payments))
+            .where(Order.order_number == order_number)
+        ).unique().scalar_one_or_none()
 
     def list_by_patient(self, patient_id: UUID) -> list[Order]:
-        return list(self.db.scalars(select(Order).where(Order.patient_id == patient_id).order_by(Order.created_at.desc())))
+        return list(
+            self.db.execute(
+                select(Order)
+                .options(joinedload(Order.items), joinedload(Order.payments))
+                .where(Order.patient_id == patient_id)
+                .order_by(Order.created_at.desc())
+            ).unique().scalars().all()
+        )
 
     def list_latest(self, limit: int = 10, order_type: str | None = None) -> list[Order]:
         stmt = select(Order).order_by(Order.created_at.desc()).limit(limit)

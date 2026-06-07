@@ -79,7 +79,8 @@ export const dataOf = async (request) => {
 };
 
 export const assetUrl = (path) => {
-  if (!path || /^https?:\/\//i.test(path) || path.startsWith("blob:")) return path;
+  if (typeof path !== "string" || !path) return path;
+  if (/^https?:\/\//i.test(path) || path.startsWith("blob:")) return path;
   const baseUrl = api.defaults.baseURL || "";
   return `${baseUrl.replace(/\/$/, "")}/${String(path).replace(/^\//, "")}`;
 };

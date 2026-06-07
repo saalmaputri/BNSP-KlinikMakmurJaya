@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import require_roles
 from app.database import get_db
 from app.models.entities import User
+from app.schemas.order import OrderResponse
 from app.schemas.cart import CartItemCreate, CartItemUpdate, CheckoutRequest
 from app.schemas.common import MessageResponse
 from app.services.cart_service import CartService
@@ -40,7 +41,7 @@ def delete_item(item_id: UUID, db: Session = Depends(get_db), user: User = Depen
     return {"message": "Item cart dihapus"}
 
 
-@router.post("/checkout")
+@router.post("/checkout", response_model=OrderResponse)
 def checkout(payload: CheckoutRequest, db: Session = Depends(get_db), user: User = Depends(require_roles("PASIEN"))):
     order = CheckoutService(db).checkout_online(user.id, payload)
     db.commit()

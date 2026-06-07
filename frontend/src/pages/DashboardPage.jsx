@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import {
+  FiActivity,
   FiAlertTriangle,
   FiCheckCircle,
   FiClock,
@@ -12,7 +13,8 @@ import {
   FiSearch,
   FiShoppingBag,
   FiShoppingCart,
-  FiTrendingUp
+  FiTrendingUp,
+  FiUser
 } from "react-icons/fi";
 import { Link, useParams } from "react-router-dom";
 import ChartCard from "../components/ChartCard";
@@ -20,6 +22,7 @@ import DataTable from "../components/DataTable";
 import StatCard from "../components/StatCard";
 import EmptyState from "../components/EmptyState";
 import { Toast } from "../components/Toast";
+import { auditLogService } from "../services/auditLogService";
 import { dashboardService } from "../services/dashboardService";
 import { medicineService } from "../services/medicineService";
 import { authStorage, normalizeList, rupiah } from "../utils/storage";
@@ -29,6 +32,7 @@ export default function DashboardPage({ roleOverride }) {
   const { role: routeRole = "admin" } = useParams();
   const role = roleOverride || routeRole;
   const [data, setData] = useState(null);
+  const [auditRows, setAuditRows] = useState([]);
 
   useEffect(() => {
     dashboardService.get(role)
@@ -39,10 +43,20 @@ export default function DashboardPage({ roleOverride }) {
       });
   }, [role]);
 
+  useEffect(() => {
+    if (role !== "admin") return;
+    auditLogService.list()
+      .then((payload) => {
+        const rows = normalizeAuditRows(payload).slice(0, 4);
+        setAuditRows(rows);
+      })
+      .catch(() => setAuditRows([]));
+  }, [role]);
+
   if (role === "pasien") return <PatientDashboard data={data} />;
   if (role === "apoteker") return <PharmacistDashboard data={data} />;
   if (role === "kasir") return <CashierDashboard data={data} />;
-  return <AdminDashboard data={data} />;
+  return <AdminDashboard data={data} auditRows={auditRows} />;
 }
 
 const transactionColumns = [
@@ -52,7 +66,7 @@ const transactionColumns = [
   { key: "status", label: "Status", type: "badge" }
 ];
 
-function AdminDashboard({ data }) {
+function AdminDashboard({ data, auditRows }) {
   return (
     <>
       <PageHeader title="Dashboard Utama" subtitle="Pusat kendali operasional Klinik Makmur Jaya." action={<Link className="btn-primary" to="/admin/reports"><FiTrendingUp /> Lihat Laporan</Link>} />
@@ -62,20 +76,105 @@ function AdminDashboard({ data }) {
         <StatCard icon={FiAlertTriangle} label="Stok Kritis" value={`${data?.critical_stock || 0} Item`} danger />
         <StatCard icon={FiFileText} label="Resep Pending" value={data?.new_orders || 0} trend="Review" />
       </div>
-      <div className="mt-6 grid gap-6 xl:grid-cols-3">
-        <div className="xl:col-span-2"><ChartCard title="Tren Penjualan Mingguan" subtitle="Performa penjualan dan transaksi klinik" data={data?.chart || []} /></div>
-        <RoleActionPanel title="Kontrol Admin" items={[
-          { label: "Manajemen Obat", to: "/admin/medicines", icon: FiPackage },
-          { label: "Transaksi", to: "/admin/transactions", icon: FiCreditCard },
-          { label: "Resep", to: "/admin/prescriptions", icon: FiFileText },
-          { label: "Sistem", to: "/admin/system", icon: FiDatabase }
-        ]} />
-      </div>
-      <div className="mt-6">
-        <DataTable columns={transactionColumns} rows={data?.latest_transactions || []} />
+      <div className="mt-6 grid gap-6 xl:grid-cols-12">
+        <div className="space-y-6 xl:col-span-9">
+          <ChartCard title="Tren Penjualan Mingguan" subtitle="Performa penjualan dan transaksi klinik" data={data?.chart || []} />
+          <section className="glass-card overflow-hidden">
+            <div className="flex items-center justify-between border-b border-outline/40 px-6 py-5">
+              <div>
+                <h4 className="text-2xl font-extrabold text-primary">Data Transaksi Terkini</h4>
+                <p className="text-sm text-muted">Transaksi terbaru dari backend klinik.</p>
+              </div>
+              <Link className="text-sm font-extrabold text-primary hover:underline" to="/admin/transactions">Lihat Semua</Link>
+            </div>
+            <DataTable columns={transactionColumns} rows={data?.latest_transactions || []} />
+          </section>
+        </div>
+        <div className="space-y-6 xl:col-span-3">
+          <AuditRail rows={auditRows} />
+        </div>
       </div>
     </>
   );
+}
+
+function AuditRail({ rows }) {
+  return (
+    <section className="glass-card h-full p-6">
+      <div className="mb-6 flex items-center justify-between">
+        <h3 className="text-2xl font-extrabold text-primary">Audit Log</h3>
+        <span className="grid h-10 w-10 place-items-center rounded-2xl bg-primary-soft text-primary">
+          <FiClock />
+        </span>
+      </div>
+      <div className="relative space-y-6">
+        <div className="absolute left-[15px] top-2 bottom-2 w-px bg-outline/20" />
+        {rows.length ? rows.map((row) => <AuditRailItem key={row.id || `${row.action}-${row.created_at}`} row={row} />) : (
+          <div className="rounded-2xl bg-surface-low p-4 text-sm font-semibold text-muted">Audit log belum tersedia.</div>
+        )}
+      </div>
+      <Link className="btn-secondary mt-6 w-full" to="/admin/system/audit">Lihat Semua Aktivitas</Link>
+    </section>
+  );
+}
+
+function AuditRailItem({ row }) {
+  const tone = auditTone(row.role);
+  const Icon = row.icon;
+  return (
+    <div className="relative flex gap-4 pl-10">
+      <div className={`absolute left-0 top-0 grid h-8 w-8 place-items-center rounded-full border-2 border-white shadow-sm ${tone.bg}`}>
+        <Icon className={tone.icon} size={16} />
+      </div>
+      <div>
+        <p className="text-lg font-extrabold text-primary">{row.action}</p>
+        <p className="text-sm text-muted">{row.actor} {row.entity ? `• ${row.entity}` : ""}</p>
+        <p className="mt-1 text-sm font-semibold text-secondary">{row.when}</p>
+      </div>
+    </div>
+  );
+}
+
+function auditTone(role) {
+  const roleName = String(role || "").toLowerCase();
+  if (roleName === "admin") return { bg: "bg-secondary-container", icon: "text-secondary" };
+  if (roleName === "apoteker") return { bg: "bg-primary-soft", icon: "text-primary" };
+  if (roleName === "kasir") return { bg: "bg-tertiary-fixed", icon: "text-tertiary" };
+  return { bg: "bg-surface-high", icon: "text-primary" };
+}
+
+function normalizeAuditRows(payload) {
+  return normalizeList(payload).map((row) => ({
+    id: row.id,
+    action: row.action || "Aktivitas sistem",
+    actor: row.actor || row.user_name || "System",
+    entity: row.entity_name || row.entity || "",
+    role: row.role_code || row.role || "system",
+    created_at: row.created_at
+  })).map((row) => ({
+    ...row,
+    when: formatRelative(row.created_at),
+    icon: row.action?.toLowerCase().includes("stok")
+      ? FiDatabase
+      : row.action?.toLowerCase().includes("login")
+        ? FiUser
+        : row.action?.toLowerCase().includes("bayar")
+          ? FiCreditCard
+          : FiActivity
+  }));
+}
+
+function formatRelative(value) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  const diff = Date.now() - date.getTime();
+  const minutes = Math.max(1, Math.round(diff / 60000));
+  if (minutes < 60) return `${minutes} menit yang lalu`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} jam yang lalu`;
+  const days = Math.round(hours / 24);
+  return `${days} hari yang lalu`;
 }
 
 function PharmacistDashboard({ data }) {
@@ -159,7 +258,7 @@ function PatientDashboard({ data }) {
   const activeOrders = data?.active_orders || 0;
   const completedOrders = data?.completed_orders || 0;
   const totalSpent = data?.total_spent || 0;
-  const latestOrder = data?.latest_order || data?.latest_transactions?.[0];
+  const latestOrder = data?.latest_order;
 
   useEffect(() => {
     medicineService.list()
@@ -168,10 +267,10 @@ function PatientDashboard({ data }) {
   }, []);
 
   const quickActions = [
-    { title: "Catalog", description: "Browse medicines and equipment", icon: FiShoppingBag, to: "/pasien/catalog" },
-    { title: "Prescriptions", description: "Upload and manage your scripts", icon: FiFileText, to: "/pasien/orders" },
-    { title: "Health Tips", description: "Daily wellness and recovery guides", icon: FiHeart, to: "/pasien/help" },
-    { title: "Support", description: "Talk to our medical concierge", icon: FiHeadphones, to: "/pasien/help" }
+    { title: "Katalog Obat", description: "Lihat obat, detail produk, dan status resep.", icon: FiShoppingBag, to: "/pasien/catalog" },
+    { title: "Pesanan Saya", description: "Pantau status checkout, pembayaran, dan verifikasi resep.", icon: FiFileText, to: "/pasien/orders" },
+    { title: "Riwayat Pembelian", description: "Lihat pesanan yang sudah selesai dan transaksi sebelumnya.", icon: FiHeart, to: "/pasien/history" },
+    { title: "Bantuan", description: "Hubungi bantuan pasien untuk pertanyaan layanan.", icon: FiHeadphones, to: "/pasien/help" }
   ];
 
   return (
@@ -234,8 +333,8 @@ function PatientDashboard({ data }) {
 
       <section>
         <div className="mb-6">
-          <h2 className="text-3xl font-extrabold text-primary">Recommended for You</h2>
-          <p className="text-muted">Based on your recent health profile and purchases</p>
+          <h2 className="text-3xl font-extrabold text-primary">Menu Pasien</h2>
+          <p className="text-muted">Akses cepat ke fitur yang tersedia untuk pasien.</p>
         </div>
         <div className="flex gap-6 overflow-x-auto pb-4">
           {products.map((product) => (
@@ -247,7 +346,7 @@ function PatientDashboard({ data }) {
                 <p className="text-sm text-muted">{product.sku || "Healthcare product"}</p>
                 <div className="mt-5 flex items-center justify-between">
                   <span className="font-extrabold text-primary">{rupiah(product.selling_price)}</span>
-                  <Link className="icon-btn" to={`/pasien/products/${product.id}`}><FiShoppingCart /></Link>
+                  <Link className="btn-secondary px-4 py-2 text-xs" to={`/pasien/products/${product.id}`}>Detail</Link>
                 </div>
               </div>
             </div>

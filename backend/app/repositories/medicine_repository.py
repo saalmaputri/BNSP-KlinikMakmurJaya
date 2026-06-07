@@ -4,7 +4,7 @@ from datetime import date, timedelta
 from uuid import UUID
 
 from sqlalchemy import and_, func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.entities import Category, Medicine, MedicineBatch, MedicineImage, StockMovement, Supplier
 from app.repositories.base import BaseRepository
@@ -14,7 +14,7 @@ class MedicineRepository(BaseRepository[Medicine]):
     model = Medicine
 
     def list(self, keyword: str | None, category_id: UUID | None, sort: str, page: int, page_size: int) -> tuple[list[Medicine], int]:
-        stmt = select(Medicine).where(Medicine.deleted_at.is_(None), Medicine.is_active.is_(True))
+        stmt = select(Medicine).options(joinedload(Medicine.category), joinedload(Medicine.supplier), joinedload(Medicine.images)).where(Medicine.deleted_at.is_(None), Medicine.is_active.is_(True))
         if keyword:
             pattern = f"%{keyword.lower()}%"
             stmt = stmt.where(or_(func.lower(Medicine.name).like(pattern), func.lower(Medicine.sku).like(pattern)))
@@ -173,6 +173,64 @@ class StockRepository(BaseRepository[MedicineBatch]):
             item["current_stock"] = item["batch_stock"]
             item["days_remaining"] = (item["expired_date"] - today).days
             item["status"] = "menipis" if item["days_remaining"] <= 30 else "monitoring"
+            result.append(item)
+        return result
+
+    def list_batches_with_expiry(self) -> list[dict]:
+        today = date.today()
+        total_stock_subquery = (
+            select(
+                MedicineBatch.medicine_id.label("medicine_id"),
+                func.coalesce(func.sum(MedicineBatch.available_quantity), 0).label("total_stock"),
+            )
+            .where(
+                MedicineBatch.deleted_at.is_(None),
+                MedicineBatch.status == "AVAILABLE",
+                MedicineBatch.available_quantity > 0,
+            )
+            .group_by(MedicineBatch.medicine_id)
+            .subquery()
+        )
+        rows = self.db.execute(
+            select(
+                MedicineBatch.id.label("medicine_batch_id"),
+                MedicineBatch.medicine_id,
+                MedicineBatch.supplier_id,
+                MedicineBatch.batch_number,
+                MedicineBatch.manufacture_date,
+                MedicineBatch.expired_date,
+                MedicineBatch.received_date,
+                MedicineBatch.initial_quantity,
+                MedicineBatch.available_quantity,
+                total_stock_subquery.c.total_stock,
+                MedicineBatch.unit_cost,
+                Medicine.name.label("medicine_name"),
+                Medicine.sku.label("medicine_sku"),
+                Medicine.minimum_stock,
+                Supplier.name.label("supplier_name"),
+            )
+            .join(Medicine, Medicine.id == MedicineBatch.medicine_id)
+            .outerjoin(total_stock_subquery, total_stock_subquery.c.medicine_id == MedicineBatch.medicine_id)
+            .outerjoin(Supplier, Supplier.id == MedicineBatch.supplier_id)
+            .where(
+                MedicineBatch.deleted_at.is_(None),
+                MedicineBatch.status == "AVAILABLE",
+                MedicineBatch.available_quantity > 0,
+            )
+            .order_by(MedicineBatch.expired_date.asc(), MedicineBatch.received_date.asc(), MedicineBatch.id.asc())
+        ).mappings()
+        result = []
+        for row in rows:
+            item = dict(row)
+            item["batch_stock"] = item["available_quantity"]
+            item["current_stock"] = item["batch_stock"]
+            item["days_remaining"] = (item["expired_date"] - today).days
+            if item["days_remaining"] < 0:
+                item["status"] = "expired"
+            elif item["days_remaining"] <= 30:
+                item["status"] = "menipis"
+            else:
+                item["status"] = "monitoring"
             result.append(item)
         return result
 

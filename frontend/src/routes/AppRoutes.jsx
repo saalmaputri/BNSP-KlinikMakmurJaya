@@ -4,7 +4,7 @@ import { Login, Register, VerifyEmail } from "../pages/AuthPages";
 import DashboardPage from "../pages/DashboardPage";
 import { CatalogPage, DetailObat, UploadPrescription } from "../pages/CatalogPages";
 import { CartPage, CheckoutPage, CheckoutSuccessPage, OrderDetail, OrdersPage, PaymentPage } from "../pages/CartCheckoutOrders";
-import { MedicinesManagement, PrescriptionsManagement, SimpleManagement, StockManagement, TransactionsManagement } from "../pages/ManagementPages";
+import { MedicinesManagement, PaymentVerificationManagement, PrescriptionsManagement, SimpleManagement, StockManagement, SupplierManagement, TransactionsManagement } from "../pages/ManagementPages";
 import PrescriptionVerify from "../pages/PrescriptionVerify";
 import { AuditLogPage, ErrorLogDashboard, HelpPage, ImportPage, MonitoringPage, SalesReport } from "../pages/LogsReportsHelp";
 import ProtectedRoute from "./ProtectedRoute";
@@ -31,9 +31,10 @@ export default function AppRoutes() {
             <Route path="/admin/medicines" element={<MedicinesManagement />} />
             <Route path="/admin/medicines/:id" element={<DetailObat catalogPath="/admin/medicines" showBatchDetails showPurchaseActions={false} />} />
             <Route path="/admin/medicines/categories" element={<SimpleManagement type="categories" title="Manajemen Kategori" subtitle="Kelola kategori produk obat." />} />
-            <Route path="/admin/medicines/suppliers" element={<SimpleManagement type="suppliers" title="Manajemen Supplier" subtitle="Kelola distributor dan supplier obat." />} />
+            <Route path="/admin/suppliers" element={<SupplierManagement />} />
             <Route path="/admin/medicines/imports" element={<ImportPage />} />
             <Route path="/admin/transactions" element={<TransactionsManagement title="Manajemen Transaksi" subtitle="Kelola transaksi penjualan, pembayaran, pelanggan, dan invoice." />} />
+            <Route path="/admin/payments" element={<PaymentVerificationManagement />} />
             <Route path="/admin/transactions/customers" element={<SimpleManagement type="customers" title="Manajemen Pelanggan" subtitle="Data pelanggan dan pasien e-commerce." />} />
             <Route path="/admin/prescriptions" element={<PrescriptionsManagement />} />
             <Route path="/admin/prescriptions/verify" element={<PrescriptionVerify />} />
@@ -46,10 +47,11 @@ export default function AppRoutes() {
             <Route path="/apoteker/dashboard" element={<DashboardPage roleOverride="apoteker" />} />
             <Route path="/apoteker/prescriptions" element={<PrescriptionVerify />} />
             <Route path="/apoteker/stocks" element={<StockManagement />} />
+            <Route path="/apoteker/stocks/:id" element={<DetailObat catalogPath="/apoteker/stocks" showBatchDetails showPurchaseActions={false} />} />
             <Route path="/apoteker/expired" element={<StockManagement mode="expired" />} />
 
             <Route path="/kasir/dashboard" element={<DashboardPage roleOverride="kasir" />} />
-            <Route path="/kasir/catalog" element={<CatalogPage basePath="/kasir/products" cartPath="/kasir/transactions" />} />
+            <Route path="/kasir/catalog" element={<CatalogPage basePath="/kasir/products" cartPath="/kasir/transactions" allowCartActions />} />
             <Route path="/kasir/products/:id" element={<DetailObat cartPath="/kasir/transactions" catalogPath="/kasir/catalog" />} />
             <Route path="/kasir/transactions" element={<TransactionsManagement title="Transaksi Kasir" subtitle="POS kasir dengan panel keranjang transaksi." cashierMode />} />
             <Route path="/kasir/history" element={<TransactionsManagement title="Riwayat Transaksi" subtitle="Riwayat transaksi kasir dan penjualan apotek." />} />

@@ -9,9 +9,8 @@ export const cartService = {
   update: (id, payload) => dataOf(() => api.put(`/cart/items/${id}`, payload)),
   remove: (id) => dataOf(() => api.delete(`/cart/items/${id}`)),
   checkout: (payload) => dataOf(() => api.post("/checkout", {
-    fulfillment_method: payload.fulfillment_method || payload.delivery_method || "PICKUP",
+    fulfillment_method: "PICKUP",
     payment_method: payload.payment_method || "BANK_TRANSFER",
-    shipping_address: payload.shipping_address,
     notes: payload.notes
   })),
   uploadProof: (orderId, file) => paymentService.uploadProof(orderId, file)

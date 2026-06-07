@@ -32,5 +32,5 @@ class BaseRepository(Generic[ModelT]):
 
     def paginate(self, stmt: Select, page: int = 1, page_size: int = 20) -> tuple[list[ModelT], int]:
         total = self.db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
-        items = self.db.scalars(stmt.offset((page - 1) * page_size).limit(page_size)).all()
+        items = self.db.execute(stmt.offset((page - 1) * page_size).limit(page_size)).unique().scalars().all()
         return list(items), total

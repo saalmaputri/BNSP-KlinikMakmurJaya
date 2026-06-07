@@ -22,4 +22,4 @@ class PDFReportGenerator:
         table = Table(data)
         table.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), colors.lightblue), ("GRID", (0, 0), (-1, -1), 0.5, colors.grey)]))
         doc.build([Paragraph("Klinik Makmur Jaya - Laporan Penjualan", styles["Title"]), Spacer(1, 12), table])
-        return str(path)
+        return f"/generated-reports/{path.name}"

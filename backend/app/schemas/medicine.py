@@ -27,6 +27,17 @@ class SupplierCreate(BaseModel):
     phone: str | None = None
     email: str | None = None
     address: str | None = None
+    tax_number: str | None = None
+
+
+class SupplierUpdate(BaseModel):
+    name: str | None = None
+    contact_person: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    address: str | None = None
+    tax_number: str | None = None
+    is_active: bool | None = None
 
 
 class SupplierResponse(ORMModel):
@@ -36,6 +47,7 @@ class SupplierResponse(ORMModel):
     phone: str | None
     email: str | None
     address: str | None
+    tax_number: str | None
     is_active: bool
 
 
@@ -80,6 +92,8 @@ class MedicineResponse(ORMModel):
     id: UUID
     category_id: UUID
     supplier_id: UUID | None
+    category_name: str | None = None
+    supplier_name: str | None = None
     sku: str
     name: str
     generic_name: str | None
@@ -91,6 +105,7 @@ class MedicineResponse(ORMModel):
     requires_prescription: bool
     minimum_stock: int
     is_active: bool
+    current_stock: int = 0
     image_url: str | None = None
 
 

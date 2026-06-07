@@ -71,9 +71,9 @@ export default function PrescriptionVerify() {
   };
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[420px_1fr]">
-      <aside>
-        <div className="mb-5 flex flex-col gap-4">
+    <div className="grid gap-6 xl:grid-cols-[390px_minmax(0,1fr)]">
+      <aside className="xl:sticky xl:top-24 xl:h-[calc(100vh-7rem)] xl:overflow-hidden">
+        <div className="mb-5 flex flex-col gap-4 xl:shrink-0">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-3xl font-extrabold text-primary">Antrean Resep</h2>
@@ -87,11 +87,12 @@ export default function PrescriptionVerify() {
           </div>
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-3 xl:max-h-[calc(100vh-17rem)] xl:overflow-y-auto xl:pr-2">
           {filtered.map((item) => (
             <button
               key={item.id}
-              className={`w-full rounded-2xl border-l-4 p-5 text-left shadow-sm transition hover:-translate-y-0.5 ${selected?.id === item.id ? "border-primary bg-white" : "border-outline bg-white/80"}`}
+              type="button"
+              className={`w-full rounded-2xl border-l-4 p-5 text-left shadow-sm transition hover:-translate-y-0.5 ${selected?.id === item.id ? "border-primary bg-white ring-1 ring-primary/10" : "border-outline bg-white/80"}`}
               onClick={() => {
                 setSelectedId(item.id);
                 setNotes(item.notes || "");
@@ -119,25 +120,25 @@ export default function PrescriptionVerify() {
 
       <section className="glass-card overflow-hidden">
         {!selected ? (
-          <div className="flex min-h-[560px] flex-col items-center justify-center p-8 text-center">
+          <div className="flex min-h-[680px] flex-col items-center justify-center p-8 text-center">
             <FiFileText className="text-5xl text-primary" />
             <h1 className="mt-4 text-2xl font-extrabold text-primary">Belum ada resep untuk diverifikasi</h1>
             <p className="mt-2 text-muted">Data akan muncul setelah pasien upload resep ke backend.</p>
           </div>
         ) : (
           <>
-            <div className="flex flex-col justify-between gap-4 border-b border-outline/60 bg-white p-6 md:flex-row md:items-start">
+            <div className="flex flex-col justify-between gap-4 border-b border-outline/60 bg-white p-6 lg:flex-row lg:items-start">
               <div>
                 <h1 className="text-3xl font-extrabold text-primary">Detail Verifikasi Resep</h1>
                 <p className="mt-1 text-muted">Validasi file resep, catatan dokter, dan keputusan apoteker.</p>
               </div>
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap gap-3 lg:justify-end">
                 <a className="btn-secondary" href={selected.file_url || selected.image_url || prescriptionImageFallback} target="_blank" rel="noreferrer"><FiEye /> Lihat File</a>
                 <a className="btn-secondary" href={selected.file_url || selected.image_url || prescriptionImageFallback} download><FiDownload /> Unduh</a>
               </div>
             </div>
 
-            <div className="grid gap-6 p-6 lg:grid-cols-[320px_1fr]">
+            <div className="grid gap-6 p-6 2xl:grid-cols-[360px_minmax(0,1fr)]">
               <div className="space-y-4">
                 <div className="rounded-2xl bg-surface-low p-5">
                   <p className="text-xs font-extrabold uppercase tracking-wide text-muted">Pasien</p>
@@ -145,7 +146,7 @@ export default function PrescriptionVerify() {
                   <p className="mt-1 text-sm text-muted">Patient ID: {selected.patient_id || "-"}</p>
                   <p className="text-sm text-muted">Order ID: {selected.order_id}</p>
                 </div>
-                <div className="overflow-hidden rounded-2xl bg-surface-low">
+                <div className="overflow-hidden rounded-2xl bg-surface-low shadow-sm">
                   <img src={selected.file_url || selected.image_url || prescriptionImageFallback} alt="Preview resep" className="h-96 w-full object-cover" />
                 </div>
               </div>
@@ -173,8 +174,8 @@ export default function PrescriptionVerify() {
                 </div>
 
                 <div className="grid gap-4 border-t border-outline/60 pt-6 md:grid-cols-2">
-                  <button className="btn-secondary h-14 border-danger text-danger" disabled={busy} onClick={reject}><FiXCircle /> Reject</button>
-                  <button className="btn-primary h-14" disabled={busy} onClick={approve}><FiCheckCircle /> Approve</button>
+                  <button type="button" className="btn-secondary h-14 border-danger text-danger" disabled={busy} onClick={reject}><FiXCircle /> Reject</button>
+                  <button type="button" className="btn-primary h-14" disabled={busy} onClick={approve}><FiCheckCircle /> Approve</button>
                 </div>
               </div>
             </div>

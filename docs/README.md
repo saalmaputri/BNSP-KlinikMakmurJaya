@@ -1,12 +1,10 @@
-# Dokumentasi Perancangan Database
+# Dokumentasi Proyek
 
-Fokus pekerjaan saat ini adalah rancangan database PostgreSQL untuk **Sistem E-Commerce Penjualan Obat Klinik Makmur Jaya**.
+Dokumen di folder ini merangkum rancangan sistem, use case, database, dan dokumen pendukung untuk **Sistem E-Commerce Penjualan Obat Klinik Makmur Jaya**.
 
-Dokumen dan artefak database:
+Dokumen utama:
 
-- [Rancangan Database](./database-design.md)
-- [DDL PostgreSQL](./database-schema.sql)
-- [Query Laporan dan FIFO](./database-queries.sql)
-- [Data Dummy Testing](./database-dummy-data.sql)
-
-Catatan: tahap ini hanya mencakup database. Backend, frontend, router, service, dan API belum dibuat.
+- [Perancangan Sistem](./perancangan-sistem.md)
+- [Use Case Diagram](./use-case-diagram.md)
+- [Dokumentasi BNSP](./BNSP-Sistem-E-Commerce-Obat-Klinik-Makmur-Jaya.md)
+- [Folder Database](../database/README.md)

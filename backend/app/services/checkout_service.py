@@ -9,6 +9,7 @@ from app.models.entities import Order, OrderItem, Payment
 from app.repositories.cart_repository import CartRepository
 from app.repositories.medicine_repository import MedicineRepository
 from app.repositories.order_repository import OrderRepository
+from app.repositories.prescription_repository import PrescriptionRepository
 from app.schemas.cart import CheckoutRequest
 from app.schemas.order import OfflineCheckoutRequest
 from app.services.stock_service import FIFOStockService
@@ -21,6 +22,7 @@ class CheckoutService:
         self.cart_repo = CartRepository(db)
         self.order_repo = OrderRepository(db)
         self.medicine_repo = MedicineRepository(db)
+        self.prescriptions = PrescriptionRepository(db)
         self.fifo = FIFOStockService(db)
         self.notifications = NotificationService(db)
 
@@ -28,13 +30,16 @@ class CheckoutService:
         cart = self.cart_repo.get_active_cart(user_id)
         if not cart or not cart.items:
             raise AppException("Cart kosong", "EMPTY_CART")
+        requires_prescription = any(bool(getattr(item.medicine, "requires_prescription", False)) for item in cart.items)
+        if requires_prescription and not self._has_approved_prescription(user_id):
+            raise AppException("Resep harus diverifikasi apoteker sebelum checkout", "PRESCRIPTION_NOT_APPROVED")
         try:
             order = self._create_order(user_id, None, "ONLINE", payload.fulfillment_method, payload.shipping_address, payload.notes)
-            requires_prescription = False
             subtotal = Decimal("0")
             for cart_item in cart.items:
                 medicine = cart_item.medicine
-                requires_prescription = requires_prescription or medicine.requires_prescription
+                if not medicine:
+                    raise NotFoundException("Data obat pada keranjang tidak ditemukan")
                 selected_batches = self.fifo.reserve_stock(medicine.id, cart_item.quantity, order.id, user_id)
                 for batch, qty in selected_batches:
                     line_total = medicine.selling_price * qty
@@ -56,30 +61,49 @@ class CheckoutService:
             order.subtotal = subtotal
             order.shipping_cost = Decimal("0") if payload.fulfillment_method == "PICKUP" else Decimal("10000")
             order.total_amount = order.subtotal + order.shipping_cost
-            order.status = "WAITING_PRESCRIPTION" if requires_prescription else "PENDING_PAYMENT"
-            self.order_repo.add_payment(Payment(order_id=order.id, payment_number=f"PAY-{order.order_number}", method=payload.payment_method, status="PENDING", amount=order.total_amount))
+            order.status = "PENDING_PAYMENT"
+            payment = self.order_repo.add_payment(Payment(order_id=order.id, payment_number=f"PAY-{order.order_number}", method=payload.payment_method, status="PENDING", amount=order.total_amount))
+            order.payments = [payment]
+            order.payment_method = payment.method
+            order.payment_status = payment.status
+            order.payment_number = payment.payment_number
+            order.proof_file_url = payment.proof_file_url
+            order.proof_uploaded_at = payment.proof_uploaded_at
+            order.verified_at = payment.verified_at
+            order.rejection_reason = payment.rejection_reason
+            if requires_prescription:
+                self.prescriptions.consume_approved(user_id)
             cart.status = "CHECKED_OUT"
-            self.notifications.create(
-                user_id,
-                "ORDER_CREATED",
-                "Pesanan berhasil dibuat",
-                f"Pesanan {order.order_number} berhasil dibuat.",
-                "ORDER",
-                order.id,
-            )
-            self.notifications.create_for_roles(
-                ["ADMIN"],
-                "NEW_ONLINE_ORDER",
-                "Pesanan online baru",
-                f"Pesanan {order.order_number} menunggu diproses.",
-                "ORDER",
-                order.id,
-                "HIGH",
-            )
+            try:
+                self.notifications.create(
+                    user_id,
+                    "ORDER_CREATED",
+                    "Pesanan berhasil dibuat",
+                    f"Pesanan {order.order_number} berhasil dibuat.",
+                    "ORDER",
+                    order.id,
+                )
+                self.notifications.create_for_roles(
+                    ["ADMIN"],
+                    "NEW_ONLINE_ORDER",
+                    "Pesanan online baru",
+                    f"Pesanan {order.order_number} menunggu diproses.",
+                    "ORDER",
+                    order.id,
+                    "HIGH",
+                )
+            except Exception:
+                pass
             return order
-        except Exception:
+        except AppException:
             self.db.rollback()
             raise
+        except Exception as exc:
+            self.db.rollback()
+            raise AppException("Checkout gagal diproses. Silakan coba lagi.", "CHECKOUT_FAILED") from exc
+
+    def _has_approved_prescription(self, patient_id: UUID) -> bool:
+        return self.prescriptions.has_approved(patient_id)
 
     def checkout_offline(self, cashier_id: UUID, payload: OfflineCheckoutRequest) -> Order:
         try:
@@ -111,7 +135,15 @@ class CheckoutService:
             order.total_amount = subtotal
             order.paid_amount = subtotal
             order.status = "COMPLETED"
-            self.order_repo.add_payment(Payment(order_id=order.id, payment_number=f"PAY-{order.order_number}", method=payload.payment_method, status="VERIFIED", amount=subtotal, paid_at=datetime.now(timezone.utc), verified_by=cashier_id, verified_at=datetime.now(timezone.utc)))
+            payment = self.order_repo.add_payment(Payment(order_id=order.id, payment_number=f"PAY-{order.order_number}", method=payload.payment_method, status="VERIFIED", amount=subtotal, paid_at=datetime.now(timezone.utc), verified_by=cashier_id, verified_at=datetime.now(timezone.utc)))
+            order.payments = [payment]
+            order.payment_method = payment.method
+            order.payment_status = payment.status
+            order.payment_number = payment.payment_number
+            order.proof_file_url = payment.proof_file_url
+            order.proof_uploaded_at = payment.proof_uploaded_at
+            order.verified_at = payment.verified_at
+            order.rejection_reason = payment.rejection_reason
             self.notifications.create(
                 cashier_id,
                 "CASHIER_ORDER_COMPLETED",
@@ -129,9 +161,12 @@ class CheckoutService:
                 order.id,
             )
             return order
-        except Exception:
+        except AppException:
             self.db.rollback()
             raise
+        except Exception as exc:
+            self.db.rollback()
+            raise AppException("Checkout gagal diproses. Silakan coba lagi.", "CHECKOUT_FAILED") from exc
 
     def _create_order(self, patient_id, cashier_id, order_type, fulfillment_method, shipping_address, notes, customer_name=None) -> Order:
         count = self.db.query(Order).count() + 1

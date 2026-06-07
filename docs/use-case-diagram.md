@@ -34,7 +34,7 @@ flowchart LR
         UCLihatStokKritis((Lihat Stok Kritis))
         UCLihatExpired((Lihat Obat Mendekati Kadaluarsa))
 
-        UCUploadResep((Upload Resep))
+        UCUploadResep((Ajukan Resep))
         UCVerifikasiResep((Verifikasi Resep))
         UCApproveResep((Setujui Resep))
         UCRejectResep((Tolak Resep))
@@ -147,7 +147,7 @@ flowchart LR
 
 | Aktor | Use case utama |
 | --- | --- |
-| Admin | Dashboard, kelola obat, kategori, supplier, stok, resep, transaksi, laporan, audit log, error log, monitoring, notifikasi |
+| Admin | Dashboard, kelola obat, kategori, supplier, stok, resep, transaksi, verifikasi pembayaran, laporan, audit log, error log, monitoring, notifikasi |
 | Apoteker | Dashboard, verifikasi resep, kelola stok, stok kritis, obat mendekati kadaluarsa |
 | Kasir | Dashboard, katalog obat, stok kritis, cart kasir, checkout kasir, transaksi, laporan, notifikasi |
-| Pasien | Register/verifikasi email, katalog obat, keranjang, checkout online, upload resep, upload bukti bayar, pesanan, notifikasi |
+| Pasien | Register/verifikasi email, katalog obat, ajukan resep, keranjang, checkout online, upload bukti bayar, pesanan, notifikasi |

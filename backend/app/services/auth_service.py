@@ -30,6 +30,8 @@ class AuthService:
             full_name=payload.full_name,
             email=payload.email.lower(),
             phone=payload.phone,
+            date_of_birth=payload.date_of_birth,
+            gender=payload.gender,
             password_hash=self.passwords.hash(payload.password),
             address=payload.address,
             status="pending_verification",

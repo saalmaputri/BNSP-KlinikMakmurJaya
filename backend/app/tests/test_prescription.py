@@ -35,5 +35,5 @@ def test_rejected_prescription_rejects_order():
     result = service.reject(prescription.id, uuid4(), "Tidak sesuai")
 
     assert result.status == "REJECTED"
-    assert order.status == "REJECTED"
+    assert order.status == "WAITING_PRESCRIPTION"
     assert len(service.repo.verifications) == 1

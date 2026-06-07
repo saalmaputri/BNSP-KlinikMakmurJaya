@@ -2,7 +2,7 @@
 
 Sistem: **E-Commerce Penjualan Obat Klinik Makmur Jaya**
 
-Fokus dokumen ini hanya database. Rancangan mendukung transaksi penjualan obat online dan offline, role Admin, Apoteker, Kasir, dan Pasien, serta kebutuhan audit, stok FIFO, resep, pembayaran, import, report, dan job background.
+Fokus dokumen ini hanya database. Rancangan mendukung transaksi penjualan obat online dan offline, role Admin, Apoteker, Kasir, dan Pasien, serta kebutuhan audit, stok FIFO, resep, pembayaran manual terverifikasi admin, import, report, dan job background.
 
 ## 1. Prinsip Desain
 
@@ -36,9 +36,9 @@ Relasi utama:
 - `orders` 1..N `order_items`: satu order memiliki banyak item.
 - `order_items` N..1 `medicines`: item order mengambil data obat.
 - `order_items` N..1 `medicine_batches`: item order mengambil stok dari batch tertentu untuk mendukung FIFO.
-- `orders` 1..N `payments`: satu order dapat memiliki satu atau lebih pembayaran.
-- `orders` 1..N `prescriptions`: satu order dapat memiliki resep dokter jika obat membutuhkan resep.
-- `prescriptions` 1..N `prescription_verifications`: resep diverifikasi oleh apoteker dan histori verifikasi disimpan.
+- `orders` 1..N `payments`: satu order dapat memiliki satu atau lebih pembayaran, tetapi alur aktif saat ini hanya memakai satu payment aktif per order dan verifikasi manual admin.
+- `orders` 1..N `prescriptions`: satu order dapat memiliki resep dokter jika obat membutuhkan resep. Resep yang sudah disetujui digunakan sekali untuk satu transaksi.
+- `prescriptions` 1..N `prescription_verifications`: resep diverifikasi oleh apoteker atau admin dan histori verifikasi disimpan.
 - `users` 1..N `notifications`: notifikasi ditujukan ke user tertentu.
 - `users` 1..N `audit_logs`: seluruh aktivitas role dicatat dengan aktor user.
 - `import_jobs`, `report_jobs`, dan `payment_jobs` menyimpan status background process.
@@ -211,7 +211,7 @@ Transaksi penjualan online dan offline.
 Kolom penting:
 
 - `orders.order_type`: `ONLINE` atau `OFFLINE`.
-- `orders.status`: status checkout dan fulfillment.
+- `orders.status`: status checkout dan fulfillment. Alur aktif saat ini bersifat pickup-only, tanpa pengiriman.
 - `orders.patient_id`: pasien pembeli.
 - `orders.cashier_id`: kasir pembuat order offline.
 - `orders.checkout_at`: waktu checkout.
@@ -224,20 +224,21 @@ Pembayaran order.
 
 Kolom penting:
 
-- `method`: metode pembayaran.
+- `method`: metode pembayaran manual yang dipakai aplikasi.
 - `status`: status pembayaran.
-- `proof_file_url`: bukti pembayaran untuk transfer.
-- `verified_by`: admin/kasir yang memverifikasi.
+- `proof_file_url`: bukti pembayaran untuk transfer manual.
+- `verified_by`: admin yang memverifikasi.
 
 ### prescriptions dan prescription_verifications
 
-Resep dokter dan verifikasi oleh apoteker.
+Resep dokter dan verifikasi oleh apoteker/admin.
 
 Kolom penting:
 
 - `prescriptions.order_id`: order terkait.
 - `prescriptions.patient_id`: pasien.
-- `prescription_verifications.pharmacist_id`: apoteker pemeriksa.
+- `prescriptions.status`: `PENDING`, `IN_REVIEW`, `APPROVED`, `REJECTED`, atau `USED`.
+- `prescription_verifications.pharmacist_id`: apoteker atau admin pemeriksa.
 - `prescription_verifications.status`: `APPROVED` atau `REJECTED`.
 
 ### notifications

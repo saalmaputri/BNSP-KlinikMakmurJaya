@@ -4,7 +4,7 @@
 
 ### 1.1 Latar Belakang
 
-Klinik Makmur Jaya membutuhkan sistem e-commerce untuk menjual obat dan produk kesehatan kepada pasien atau pelanggan secara lebih terstruktur. Sistem ini mendukung katalog obat, pemesanan online, validasi stok, pembayaran, pengiriman atau pengambilan di klinik, serta laporan operasional.
+Klinik Makmur Jaya membutuhkan sistem e-commerce untuk menjual obat dan produk kesehatan kepada pasien atau pelanggan secara lebih terstruktur. Sistem ini mendukung katalog obat, pemesanan online, validasi stok, pembayaran manual terverifikasi admin, pengambilan pesanan di klinik, serta laporan operasional.
 
 ### 1.2 Tujuan Proyek
 
@@ -22,22 +22,23 @@ Sistem mencakup:
 - Pencarian dan filter produk.
 - Keranjang belanja.
 - Checkout pesanan.
-- Upload bukti pembayaran atau pencatatan status pembayaran.
+- Upload bukti pembayaran dan verifikasi pembayaran oleh admin.
 - Manajemen pesanan oleh admin.
 - Validasi dan pengurangan stok oleh apoteker/admin.
-- Manajemen produk, kategori, supplier, stok, dan batch kedaluwarsa.
-- Laporan penjualan, stok, produk terlaris, dan transaksi.
+- Manajemen produk, kategori, supplier, stok, dan batch kedaluwarsa per obat.
+- Laporan penjualan, stok, obat terlaris, dan transaksi.
 - Ekspor laporan PDF menggunakan ReportLab.
 - Dashboard grafik menggunakan Recharts.
-- Import data produk atau stok dari Excel menggunakan Pandas dan OpenPyXL.
+- Import data produk atau stok dari CSV atau Excel menggunakan Pandas dan OpenPyXL.
 - Pemrosesan tugas latar belakang menggunakan Celery dan Redis.
 
 ### 1.4 Batasan Sistem
 
 - Sistem tidak menggantikan konsultasi dokter.
 - Sistem tidak melakukan diagnosis penyakit.
-- Pembayaran gateway pihak ketiga belum menjadi ruang lingkup utama; desain awal mendukung transfer manual atau status pembayaran yang diverifikasi admin.
-- Obat yang membutuhkan resep harus melalui verifikasi resep sebelum pesanan diproses.
+- Pembayaran gateway pihak ketiga tidak digunakan; sistem memakai unggah bukti pembayaran dan verifikasi manual oleh admin.
+- Obat yang membutuhkan resep harus diunggah fotonya, diverifikasi apoteker atau admin, lalu hanya dapat dipakai satu kali transaksi.
+- Alur pesanan online pasien hanya mendukung ambil di klinik.
 - Sistem dirancang sebagai aplikasi web, bukan aplikasi mobile native.
 
 ### 1.5 Stack Teknologi
@@ -86,9 +87,9 @@ Sistem mencakup:
 | FR-013 | Pelanggan dapat menambahkan produk ke keranjang. |
 | FR-014 | Pelanggan dapat mengubah jumlah item di keranjang. |
 | FR-015 | Sistem memvalidasi stok saat item ditambahkan dan saat checkout. |
-| FR-016 | Pelanggan dapat memilih metode pemenuhan pesanan: ambil di klinik atau kirim. |
-| FR-017 | Pelanggan dapat memasukkan alamat pengiriman. |
-| FR-018 | Sistem menghitung subtotal, biaya pengiriman, diskon bila ada, dan total pesanan. |
+| FR-016 | Pelanggan dapat memilih metode pemenuhan pesanan: ambil di klinik. |
+| FR-017 | Sistem menampilkan catatan pengambilan pesanan di klinik. |
+| FR-018 | Sistem menghitung subtotal, biaya layanan klinik bila ada, diskon bila ada, dan total pesanan. |
 
 ### 2.4 Pesanan dan Pembayaran
 
@@ -98,8 +99,8 @@ Sistem mencakup:
 | FR-020 | Pelanggan dapat melihat riwayat pesanan. |
 | FR-021 | Pelanggan dapat melihat detail status pesanan. |
 | FR-022 | Pelanggan dapat mengunggah bukti pembayaran. |
-| FR-023 | Admin dapat memverifikasi pembayaran. |
-| FR-024 | Admin/apoteker dapat memproses, menolak, atau menyelesaikan pesanan. |
+| FR-023 | Admin dapat memverifikasi atau menolak bukti pembayaran. |
+| FR-024 | Admin/apoteker dapat memproses pesanan, menandai siap diambil, dan menyelesaikan pesanan. |
 | FR-025 | Sistem mencatat histori perubahan status pesanan. |
 
 ### 2.5 Resep dan Validasi Obat
@@ -107,9 +108,10 @@ Sistem mencakup:
 | Kode | Kebutuhan |
 | --- | --- |
 | FR-026 | Produk dapat ditandai sebagai membutuhkan resep. |
-| FR-027 | Pelanggan wajib mengunggah resep jika pesanan berisi obat wajib resep. |
-| FR-028 | Apoteker dapat memverifikasi resep. |
-| FR-029 | Pesanan obat wajib resep tidak dapat diproses sebelum resep disetujui. |
+| FR-027 | Pelanggan wajib mengunggah foto resep jika pesanan berisi obat wajib resep. |
+| FR-028 | Apoteker atau admin dapat memverifikasi resep. |
+| FR-029 | Pesanan obat wajib resep tidak dapat dilanjutkan checkout sebelum resep disetujui. |
+| FR-029a | Resep yang sudah disetujui hanya dapat digunakan untuk satu transaksi. |
 
 ### 2.6 Manajemen Stok
 
@@ -117,7 +119,7 @@ Sistem mencakup:
 | --- | --- |
 | FR-030 | Admin/apoteker dapat melihat stok produk. |
 | FR-031 | Admin/apoteker dapat menambah stok masuk. |
-| FR-032 | Sistem mengurangi stok saat pesanan dikonfirmasi untuk diproses. |
+| FR-032 | Sistem mengurangi stok saat checkout berhasil dan stok diambil dari batch FIFO. |
 | FR-033 | Sistem mencatat mutasi stok masuk, keluar, koreksi, dan pembatalan. |
 | FR-034 | Sistem menyimpan informasi batch dan tanggal kedaluwarsa. |
 | FR-035 | Sistem memberi indikator stok rendah dan produk mendekati kedaluwarsa. |
@@ -139,8 +141,8 @@ Sistem mencakup:
 | FR-041 | Admin/manajemen dapat melihat dashboard ringkasan penjualan. |
 | FR-042 | Admin/manajemen dapat melihat grafik penjualan menggunakan Recharts. |
 | FR-043 | Admin/manajemen dapat mengekspor laporan penjualan PDF menggunakan ReportLab. |
-| FR-044 | Admin/manajemen dapat melihat laporan stok. |
-| FR-045 | Admin/manajemen dapat melihat laporan produk terlaris. |
+| FR-044 | Admin/manajemen dapat melihat laporan stok per batch dan per obat. |
+| FR-045 | Admin/manajemen dapat melihat laporan obat terlaris beserta grafiknya. |
 | FR-046 | Admin/manajemen dapat memfilter laporan berdasarkan periode. |
 
 ### 2.9 Notifikasi Internal
@@ -166,7 +168,7 @@ Sistem mencakup:
 | NFR-009 | Maintainability | Backend dipisahkan ke router, service, repository/model, schema, dan worker. |
 | NFR-010 | Maintainability | Frontend dipisahkan ke pages, components, services, hooks, layouts, dan stores. |
 | NFR-011 | Usability | UI harus responsif untuk desktop dan mobile browser. |
-| NFR-012 | Auditability | Aktivitas penting seperti login gagal, update pesanan, verifikasi pembayaran, dan mutasi stok dicatat. |
+| NFR-012 | Auditability | Aktivitas penting seperti login gagal, update pesanan, verifikasi pembayaran, verifikasi resep, dan mutasi stok dicatat. |
 | NFR-013 | Compatibility | Sistem berjalan di browser modern seperti Chrome, Edge, Firefox, dan Safari versi terbaru. |
 | NFR-014 | Scalability | Arsitektur mendukung pemisahan web server, database, Redis, dan worker. |
 | NFR-015 | Backup | Database harus dapat di-backup berkala dan dipulihkan saat dibutuhkan. |
@@ -175,35 +177,34 @@ Sistem mencakup:
 
 | Role | Deskripsi | Hak Akses Utama |
 | --- | --- | --- |
-| Guest | Pengunjung belum login. | Melihat katalog, mencari produk, registrasi, login. |
-| Customer | Pelanggan terdaftar. | Mengelola profil, keranjang, checkout, upload resep, upload bukti pembayaran, melihat riwayat pesanan. |
-| Pharmacist | Petugas apotek. | Verifikasi resep, validasi stok, memproses pesanan, mencatat mutasi stok. |
-| Admin | Pengelola sistem operasional. | Mengelola produk, kategori, user, pesanan, pembayaran, stok, import data, laporan. |
-| Manager | Pimpinan atau pemilik klinik. | Melihat dashboard dan laporan, memantau performa penjualan dan stok. |
+| Pasien | Pelanggan terdaftar. | Mengelola profil, melihat katalog, mengajukan resep, checkout, upload bukti pembayaran, melihat riwayat pesanan. |
+| Apoteker | Petugas apotek. | Verifikasi resep, validasi stok, menyiapkan pesanan, mencatat mutasi stok. |
+| Admin | Pengelola sistem operasional. | Mengelola produk, kategori, supplier, user, pesanan, pembayaran, stok, import data, laporan. |
+| Kasir | Petugas transaksi. | Melayani transaksi offline, mengelola transaksi kasir, dan melihat riwayat pembayaran. |
 
 ## 5. Use Case List
 
 | Kode | Use Case | Aktor | Ringkasan |
 | --- | --- | --- | --- |
-| UC-001 | Registrasi Akun | Guest | Guest membuat akun pelanggan baru. |
-| UC-002 | Login | Guest, Customer, Pharmacist, Admin, Manager | Pengguna masuk ke sistem dan menerima token akses. |
-| UC-003 | Melihat Katalog | Guest, Customer | Pengguna melihat daftar produk yang aktif dan tersedia. |
-| UC-004 | Mencari Produk | Guest, Customer | Pengguna mencari produk berdasarkan kata kunci dan kategori. |
-| UC-005 | Melihat Detail Produk | Guest, Customer | Pengguna melihat informasi lengkap produk. |
-| UC-006 | Mengelola Keranjang | Customer | Customer menambah, mengubah, dan menghapus item keranjang. |
-| UC-007 | Checkout Pesanan | Customer | Customer membuat pesanan dari isi keranjang. |
-| UC-008 | Upload Resep | Customer | Customer mengunggah resep untuk obat tertentu. |
-| UC-009 | Upload Bukti Pembayaran | Customer | Customer mengunggah bukti transfer. |
+| UC-001 | Registrasi Akun | Pasien | Pasien membuat akun baru. |
+| UC-002 | Login | Pasien, Apoteker, Admin, Kasir | Pengguna masuk ke sistem dan menerima token akses. |
+| UC-003 | Melihat Katalog | Pasien, Kasir | Pengguna melihat daftar produk yang aktif dan tersedia. |
+| UC-004 | Mencari Produk | Pasien, Kasir | Pengguna mencari produk berdasarkan kata kunci dan kategori. |
+| UC-005 | Melihat Detail Produk | Pasien, Kasir | Pengguna melihat informasi lengkap produk. |
+| UC-006 | Mengelola Keranjang | Pasien | Pasien menambah, mengubah, dan menghapus item keranjang. |
+| UC-007 | Checkout Pesanan | Pasien | Pasien membuat pesanan dari isi keranjang. |
+| UC-008 | Ajukan Resep | Pasien | Pasien mengunggah foto resep untuk obat tertentu dan menunggu verifikasi. |
+| UC-009 | Upload Bukti Pembayaran | Pasien | Pasien mengunggah bukti transfer. |
 | UC-010 | Verifikasi Pembayaran | Admin | Admin memvalidasi bukti pembayaran. |
-| UC-011 | Verifikasi Resep | Pharmacist | Apoteker menyetujui atau menolak resep. |
-| UC-012 | Proses Pesanan | Admin, Pharmacist | Petugas mengubah status pesanan menjadi diproses, dikirim, siap diambil, atau selesai. |
+| UC-011 | Verifikasi Resep | Apoteker, Admin | Petugas menyetujui atau menolak resep. |
+| UC-012 | Proses Pesanan | Admin, Apoteker | Petugas mengubah status pesanan menjadi diproses, packaging, siap diambil, atau selesai. |
 | UC-013 | Kelola Produk | Admin | Admin membuat dan memperbarui data produk. |
 | UC-014 | Kelola Kategori | Admin | Admin mengatur kategori produk. |
-| UC-015 | Kelola Stok | Admin, Pharmacist | Petugas mencatat stok masuk, keluar, koreksi, dan batch. |
+| UC-015 | Kelola Stok | Admin, Apoteker | Petugas mencatat stok masuk, keluar, koreksi, batch, dan tanggal kedaluwarsa. |
 | UC-016 | Import Produk Excel | Admin | Admin mengunggah file Excel untuk membuat atau memperbarui produk. |
 | UC-017 | Import Stok Excel | Admin | Admin mengunggah file Excel untuk memperbarui stok. |
-| UC-018 | Lihat Dashboard | Admin, Manager | Pengguna melihat ringkasan metrik operasional. |
-| UC-019 | Generate Laporan PDF | Admin, Manager | Pengguna membuat laporan PDF penjualan atau stok. |
+| UC-018 | Lihat Dashboard | Admin, Apoteker, Kasir, Pasien | Pengguna melihat ringkasan metrik sesuai role. |
+| UC-019 | Generate Laporan PDF | Admin | Pengguna membuat laporan PDF penjualan atau stok. |
 | UC-020 | Kelola User | Admin | Admin mengatur status dan role user. |
 
 ## 6. ERD
@@ -348,7 +349,7 @@ erDiagram
 | email | VARCHAR(150) | UNIQUE, NOT NULL | Email login. |
 | password_hash | VARCHAR(255) | NOT NULL | Hash bcrypt. |
 | phone | VARCHAR(30) | NULL | Nomor telepon. |
-| role | VARCHAR(30) | NOT NULL | guest tidak disimpan; nilai: customer, pharmacist, admin, manager. |
+| role | VARCHAR(30) | NOT NULL | nilai: pasien, apoteker, admin, kasir. |
 | is_active | BOOLEAN | DEFAULT TRUE | Status akun. |
 | created_at | TIMESTAMPTZ | NOT NULL | Waktu dibuat. |
 | updated_at | TIMESTAMPTZ | NOT NULL | Waktu diperbarui. |
@@ -422,13 +423,13 @@ erDiagram
 | Kolom | Tipe | Constraint | Keterangan |
 | --- | --- | --- | --- |
 | id | UUID | PK | Identitas pesanan. |
-| user_id | UUID | FK users.id | Customer. |
+| user_id | UUID | FK users.id | Pasien. |
 | order_number | VARCHAR(40) | UNIQUE, NOT NULL | Nomor pesanan. |
-| status | VARCHAR(40) | NOT NULL | pending_payment, paid, prescription_review, processing, ready_for_pickup, shipped, completed, cancelled, rejected. |
-| fulfillment_method | VARCHAR(30) | NOT NULL | pickup atau delivery. |
-| shipping_address_snapshot | JSONB | NULL | Snapshot alamat saat checkout. |
+| status | VARCHAR(40) | NOT NULL | pending_checkout, waiting_prescription, prescription_review, pending_payment, paid, processing, ready_for_pickup, completed, cancelled, rejected. |
+| fulfillment_method | VARCHAR(30) | NOT NULL | pickup. |
+| shipping_address_snapshot | JSONB | NULL | Disimpan untuk kompatibilitas, alur pasien saat ini tidak memakai pengiriman. |
 | subtotal | NUMERIC(14,2) | NOT NULL | Subtotal. |
-| shipping_cost | NUMERIC(14,2) | DEFAULT 0 | Ongkir. |
+| shipping_cost | NUMERIC(14,2) | DEFAULT 0 | Biaya layanan klinik jika diperlukan. |
 | total_amount | NUMERIC(14,2) | NOT NULL | Total. |
 | notes | TEXT | NULL | Catatan pelanggan/admin. |
 | created_at | TIMESTAMPTZ | NOT NULL | Waktu dibuat. |
@@ -452,7 +453,7 @@ erDiagram
 | --- | --- | --- | --- |
 | id | UUID | PK | Identitas pembayaran. |
 | order_id | UUID | FK orders.id | Pesanan. |
-| method | VARCHAR(30) | NOT NULL | bank_transfer, cash_on_pickup. |
+| method | VARCHAR(30) | NOT NULL | bank_transfer, ewallet, qris. |
 | status | VARCHAR(30) | NOT NULL | pending, uploaded, verified, rejected. |
 | amount | NUMERIC(14,2) | NOT NULL | Nominal. |
 | proof_file_path | VARCHAR(255) | NULL | Lokasi bukti bayar. |
@@ -467,7 +468,7 @@ erDiagram
 | order_id | UUID | FK orders.id | Pesanan. |
 | user_id | UUID | FK users.id | Pengunggah. |
 | file_path | VARCHAR(255) | NOT NULL | Lokasi file resep. |
-| status | VARCHAR(30) | NOT NULL | pending, approved, rejected. |
+| status | VARCHAR(30) | NOT NULL | pending, approved, rejected, used. |
 | reviewed_by | UUID | FK users.id, NULL | Apoteker pemeriksa. |
 | reviewed_at | TIMESTAMPTZ | NULL | Waktu pemeriksaan. |
 | notes | TEXT | NULL | Catatan pemeriksaan. |
@@ -535,7 +536,7 @@ erDiagram
 
 | Method | Endpoint | Role | Deskripsi |
 | --- | --- | --- | --- |
-| POST | `/auth/register` | Public | Registrasi customer. |
+| POST | `/auth/register` | Public | Registrasi pasien. |
 | POST | `/auth/login` | Public | Login dan mendapatkan JWT. |
 | GET | `/auth/me` | Authenticated | Mengambil profil user login. |
 | PATCH | `/auth/me` | Authenticated | Update profil pribadi. |
@@ -559,44 +560,44 @@ erDiagram
 
 | Method | Endpoint | Role | Deskripsi |
 | --- | --- | --- | --- |
-| GET | `/cart` | Customer | Lihat keranjang. |
-| POST | `/cart/items` | Customer | Tambah item. |
-| PATCH | `/cart/items/{id}` | Customer | Ubah jumlah. |
-| DELETE | `/cart/items/{id}` | Customer | Hapus item. |
-| DELETE | `/cart` | Customer | Kosongkan keranjang. |
+| GET | `/cart` | Pasien | Lihat keranjang. |
+| POST | `/cart/items` | Pasien | Tambah item. |
+| PATCH | `/cart/items/{id}` | Pasien | Ubah jumlah. |
+| DELETE | `/cart/items/{id}` | Pasien | Hapus item. |
+| DELETE | `/cart` | Pasien | Kosongkan keranjang. |
 
 ### 8.5 Endpoint Pesanan
 
 | Method | Endpoint | Role | Deskripsi |
 | --- | --- | --- | --- |
-| POST | `/orders/checkout` | Customer | Membuat pesanan dari keranjang. |
-| GET | `/orders/my` | Customer | Riwayat pesanan pelanggan. |
-| GET | `/orders/{id}` | Customer, Admin, Pharmacist, Manager | Detail pesanan sesuai akses. |
-| GET | `/admin/orders` | Admin, Pharmacist | Daftar semua pesanan operasional. |
-| PATCH | `/admin/orders/{id}/status` | Admin, Pharmacist | Update status pesanan. |
-| POST | `/orders/{id}/cancel` | Customer, Admin | Batalkan pesanan sesuai aturan status. |
+| POST | `/orders/checkout` | Pasien | Membuat pesanan dari keranjang. |
+| GET | `/orders/my` | Pasien | Riwayat pesanan pasien. |
+| GET | `/orders/{id}` | Pasien, Admin, Apoteker, Kasir | Detail pesanan sesuai akses. |
+| GET | `/admin/orders` | Admin, Apoteker | Daftar semua pesanan operasional. |
+| PATCH | `/admin/orders/{id}/status` | Admin, Apoteker | Update status pesanan. |
+| POST | `/orders/{id}/cancel` | Pasien, Admin | Batalkan pesanan sesuai aturan status. |
 
 ### 8.6 Endpoint Pembayaran dan Resep
 
 | Method | Endpoint | Role | Deskripsi |
 | --- | --- | --- | --- |
-| POST | `/orders/{id}/payment-proof` | Customer | Upload bukti pembayaran. |
+| POST | `/orders/{id}/payment-proof` | Pasien | Upload bukti pembayaran. |
 | PATCH | `/admin/payments/{id}/verify` | Admin | Verifikasi pembayaran. |
 | PATCH | `/admin/payments/{id}/reject` | Admin | Tolak pembayaran. |
-| POST | `/orders/{id}/prescriptions` | Customer | Upload resep. |
-| PATCH | `/pharmacist/prescriptions/{id}/approve` | Pharmacist | Setujui resep. |
-| PATCH | `/pharmacist/prescriptions/{id}/reject` | Pharmacist | Tolak resep. |
+| POST | `/orders/{id}/prescriptions` | Pasien | Upload resep. |
+| PATCH | `/pharmacist/prescriptions/{id}/approve` | Apoteker | Setujui resep. |
+| PATCH | `/pharmacist/prescriptions/{id}/reject` | Apoteker | Tolak resep. |
 
 ### 8.7 Endpoint Stok
 
 | Method | Endpoint | Role | Deskripsi |
 | --- | --- | --- | --- |
-| GET | `/admin/stocks` | Admin, Pharmacist | Daftar stok per produk. |
-| GET | `/admin/stocks/{product_id}/movements` | Admin, Pharmacist | Kartu stok produk. |
-| POST | `/admin/stocks/batches` | Admin, Pharmacist | Tambah batch stok. |
-| POST | `/admin/stocks/adjustments` | Admin, Pharmacist | Koreksi stok. |
-| GET | `/admin/stocks/low-stock` | Admin, Pharmacist | Produk stok rendah. |
-| GET | `/admin/stocks/near-expiry` | Admin, Pharmacist | Produk mendekati kedaluwarsa. |
+| GET | `/admin/stocks` | Admin, Apoteker | Daftar stok per produk. |
+| GET | `/admin/stocks/{product_id}/movements` | Admin, Apoteker | Kartu stok produk. |
+| POST | `/admin/stocks/batches` | Admin, Apoteker | Tambah batch stok. |
+| POST | `/admin/stocks/adjustments` | Admin, Apoteker | Koreksi stok. |
+| GET | `/admin/stocks/low-stock` | Admin, Apoteker | Produk stok rendah. |
+| GET | `/admin/stocks/near-expiry` | Admin, Apoteker | Produk mendekati kedaluwarsa. |
 
 ### 8.8 Endpoint Import dan Report
 
@@ -605,19 +606,19 @@ erDiagram
 | POST | `/admin/imports/products` | Admin | Upload Excel produk. |
 | POST | `/admin/imports/stocks` | Admin | Upload Excel stok. |
 | GET | `/admin/imports/{id}` | Admin | Status import. |
-| GET | `/admin/reports/sales` | Admin, Manager | Data laporan penjualan JSON. |
-| GET | `/admin/reports/stocks` | Admin, Manager | Data laporan stok JSON. |
-| POST | `/admin/reports/sales/pdf` | Admin, Manager | Membuat report PDF async. |
-| GET | `/admin/reports/jobs/{id}` | Admin, Manager | Status report job. |
-| GET | `/admin/reports/jobs/{id}/download` | Admin, Manager | Download PDF. |
+| GET | `/admin/reports/sales` | Admin | Data laporan penjualan JSON. |
+| GET | `/admin/reports/stocks` | Admin | Data laporan stok JSON. |
+| POST | `/admin/reports/sales/pdf` | Admin | Membuat report PDF async. |
+| GET | `/admin/reports/jobs/{id}` | Admin | Status report job. |
+| GET | `/admin/reports/jobs/{id}/download` | Admin | Download PDF. |
 
 ### 8.9 Endpoint Dashboard
 
 | Method | Endpoint | Role | Deskripsi |
 | --- | --- | --- | --- |
-| GET | `/admin/dashboard/summary` | Admin, Manager | Ringkasan omzet, order, stok rendah. |
-| GET | `/admin/dashboard/sales-chart` | Admin, Manager | Data grafik penjualan untuk Recharts. |
-| GET | `/admin/dashboard/best-selling-products` | Admin, Manager | Produk terlaris. |
+| GET | `/admin/dashboard/summary` | Admin | Ringkasan omzet, order, stok rendah. |
+| GET | `/admin/dashboard/sales-chart` | Admin | Data grafik penjualan untuk Recharts. |
+| GET | `/admin/dashboard/best-selling-products` | Admin | Produk terlaris. |
 
 ## 9. Folder Structure Frontend
 
@@ -833,10 +834,10 @@ backend/
 ### 11.2 Otorisasi
 
 - Setiap endpoint privat menggunakan dependency FastAPI untuk mengambil user aktif dari JWT.
-- Role-based access control diterapkan pada endpoint admin, apoteker, manager, dan customer.
-- Customer hanya dapat mengakses resource miliknya sendiri, seperti keranjang, alamat, dan pesanan pribadi.
+- Role-based access control diterapkan pada endpoint admin, apoteker, kasir, dan pasien.
+- Pasien hanya dapat mengakses resource miliknya sendiri, seperti keranjang, alamat, dan pesanan pribadi.
 - Admin dapat mengelola data master dan operasional.
-- Manager hanya melihat data laporan dan dashboard, tidak mengubah transaksi.
+- Role non-admin hanya mengakses fitur sesuai hak aksesnya masing-masing.
 
 ### 11.3 Proteksi Data
 
@@ -990,16 +991,16 @@ Memastikan sistem memenuhi kebutuhan pengguna Klinik Makmur Jaya dan siap diguna
 
 | Peserta | Fokus Pengujian |
 | --- | --- |
-| Customer perwakilan | Registrasi, katalog, keranjang, checkout, upload resep/bukti bayar. |
+| Pasien perwakilan | Registrasi, katalog, keranjang, checkout, upload resep/bukti bayar. |
 | Admin | Produk, kategori, user, pesanan, pembayaran, import, laporan. |
 | Apoteker | Verifikasi resep, proses pesanan, stok. |
-| Manager | Dashboard dan laporan. |
+| Kasir | Transaksi kasir dan riwayat pembayaran. |
 
 ### 15.3 Skenario UAT
 
 | Kode | Skenario | Langkah Utama | Expected Result |
 | --- | --- | --- | --- |
-| UAT-001 | Registrasi pelanggan | Isi form registrasi valid | Akun customer dibuat dan dapat login. |
+| UAT-001 | Registrasi pelanggan | Isi form registrasi valid | Akun pasien dibuat dan dapat login. |
 | UAT-002 | Login user | Masukkan email dan password benar | User masuk sesuai role. |
 | UAT-003 | Cari produk | Cari nama produk di katalog | Produk relevan tampil. |
 | UAT-004 | Tambah keranjang | Pilih produk dan jumlah | Item masuk ke keranjang. |
@@ -1007,15 +1008,15 @@ Memastikan sistem memenuhi kebutuhan pengguna Klinik Makmur Jaya dan siap diguna
 | UAT-006 | Checkout obat resep | Checkout produk wajib resep | Sistem meminta upload resep. |
 | UAT-007 | Upload resep | Upload file resep valid | Resep tersimpan dengan status pending. |
 | UAT-008 | Verifikasi resep | Apoteker approve resep | Status resep approved dan pesanan dapat diproses. |
-| UAT-009 | Upload bukti bayar | Customer upload bukti transfer | Payment menjadi uploaded. |
+| UAT-009 | Upload bukti bayar | Pasien upload bukti transfer | Payment menjadi uploaded. |
 | UAT-010 | Verifikasi pembayaran | Admin approve bukti bayar | Payment verified dan status order lanjut sesuai aturan. |
 | UAT-011 | Proses pesanan | Admin/apoteker ubah status | Histori status tercatat. |
 | UAT-012 | Stok berkurang | Pesanan diproses | Stok produk berkurang dan mutasi tercatat. |
 | UAT-013 | Import produk | Upload template Excel valid | Produk berhasil diimpor dan job sukses. |
 | UAT-014 | Import gagal sebagian | Upload Excel dengan beberapa baris invalid | Sistem menampilkan jumlah gagal dan detail error. |
-| UAT-015 | Dashboard | Manager buka dashboard | Metrik dan grafik tampil sesuai data. |
+| UAT-015 | Dashboard | Admin buka dashboard | Metrik dan grafik tampil sesuai data. |
 | UAT-016 | Generate laporan PDF | Pilih periode dan generate | PDF dibuat dan dapat diunduh. |
-| UAT-017 | Role restriction | Customer akses halaman admin | Akses ditolak. |
+| UAT-017 | Role restriction | Pasien akses halaman admin | Akses ditolak. |
 
 ### 15.4 Kriteria Penerimaan
 
@@ -1033,7 +1034,7 @@ Strategi yang direkomendasikan adalah phased cutover:
 
 1. Persiapan data master produk, kategori, supplier, dan stok awal.
 2. Uji sistem di lingkungan staging/demo.
-3. Training singkat admin, apoteker, dan manager.
+3. Training singkat admin, apoteker, dan kasir.
 4. Go-live terbatas untuk pesanan internal atau pelanggan tertentu.
 5. Evaluasi hasil go-live terbatas.
 6. Go-live penuh untuk seluruh pelanggan.
@@ -1050,14 +1051,14 @@ Strategi yang direkomendasikan adalah phased cutover:
 | H-1 | Freeze perubahan data master manual | Admin |
 | H | Deploy produksi dan import stok final | Tim proyek, Admin |
 | H+1 | Monitoring transaksi awal | Admin, Apoteker |
-| H+7 | Evaluasi stabilitas dan laporan awal | Manager |
+| H+7 | Evaluasi stabilitas dan laporan awal | Admin |
 
 ### 16.3 Data Migration
 
 - Produk dan kategori dimigrasikan menggunakan template Excel.
 - Stok awal dimigrasikan menggunakan template Excel stok.
 - User internal dibuat oleh admin.
-- Customer lama dapat dibuat melalui registrasi mandiri atau import bila data tersedia dan sesuai persetujuan.
+- Pasien lama dapat dibuat melalui registrasi mandiri atau import bila data tersedia dan sesuai persetujuan.
 
 ### 16.4 Rollback Plan
 
@@ -1097,7 +1098,7 @@ Pelanggan datang/menghubungi klinik -> Staf cek stok manual -> Pembayaran -> Oba
 Proses baru:
 
 ```text
-Pelanggan pesan online -> Sistem validasi keranjang -> Pembayaran/resep diverifikasi -> Stok diproses -> Pesanan dikirim/diambil -> Laporan otomatis
+Pelanggan pesan online -> Sistem validasi keranjang -> Upload resep bila diperlukan -> Verifikasi resep dan pembayaran -> Stok diproses FIFO -> Pesanan siap diambil di klinik -> Laporan otomatis
 ```
 
 ### 17.4 Dampak Teknologi
@@ -1123,13 +1124,13 @@ Pelanggan pesan online -> Sistem validasi keranjang -> Pembayaran/resep diverifi
 
 | Status | Keterangan |
 | --- | --- |
-| pending_payment | Pesanan dibuat dan menunggu pembayaran. |
+| pending_checkout | Draft pesanan dibuat sebelum checkout selesai. |
 | waiting_prescription | Pesanan membutuhkan resep dan menunggu upload/verifikasi. |
-| prescription_review | Resep sedang diperiksa apoteker. |
+| prescription_review | Resep sedang diperiksa apoteker atau admin. |
+| pending_payment | Pesanan sudah dibuat dan menunggu pembayaran. |
 | paid | Pembayaran sudah diverifikasi. |
 | processing | Pesanan sedang disiapkan. |
 | ready_for_pickup | Pesanan siap diambil di klinik. |
-| shipped | Pesanan dikirim. |
 | completed | Pesanan selesai. |
 | cancelled | Pesanan dibatalkan. |
 | rejected | Pesanan ditolak karena alasan valid, misalnya resep tidak sesuai. |
@@ -1148,8 +1149,9 @@ Pelanggan pesan online -> Sistem validasi keranjang -> Pembayaran/resep diverifi
 | Status | Keterangan |
 | --- | --- |
 | pending | Resep belum diperiksa. |
-| approved | Resep disetujui apoteker. |
-| rejected | Resep ditolak apoteker. |
+| approved | Resep disetujui apoteker atau admin. |
+| rejected | Resep ditolak apoteker atau admin. |
+| used | Resep sudah dipakai untuk satu transaksi. |
 
 ## Lampiran B. Prioritas MVP
 
@@ -1173,7 +1175,6 @@ Pelanggan pesan online -> Sistem validasi keranjang -> Pembayaran/resep diverifi
 
 ### Prioritas 3
 
-- Integrasi payment gateway.
 - Notifikasi email/WhatsApp.
 - Loyalty point atau promo.
 - Read replica/reporting database jika dibutuhkan.

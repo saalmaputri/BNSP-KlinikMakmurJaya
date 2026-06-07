@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class DateRangeRequest(BaseModel):
@@ -22,3 +22,5 @@ class JobResponse(BaseModel):
     status: str
     file_url: str | None = None
     error_message: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)

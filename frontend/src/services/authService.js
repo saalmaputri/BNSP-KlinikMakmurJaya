@@ -28,6 +28,8 @@ export const authService = {
     email: payload.email,
     password: payload.password,
     phone: payload.phone,
+    date_of_birth: payload.date_of_birth || payload.birth_date || null,
+    gender: payload.gender || null,
     address: payload.address
   })),
   verifyEmail: (payload) => dataOf(() => api.post("/auth/verify-email", { token: payload.token || payload.code })),

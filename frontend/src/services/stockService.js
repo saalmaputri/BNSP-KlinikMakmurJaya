@@ -27,6 +27,7 @@ export const stockService = {
   list: async () => normalizeStockList(await dataOf(() => api.get("/stocks"))),
   critical: async () => normalizeStockList(await dataOf(() => api.get("/stocks/critical"))),
   expiredSoon: async () => normalizeExpiredStockList(await dataOf(() => api.get("/stocks/expired-soon"))),
+  batches: async () => normalizeExpiredStockList(await dataOf(() => api.get("/stocks/batches"))),
   addBatch: (payload) => dataOf(() => api.post("/stocks/batches", payload)),
   adjustment: (payload) => dataOf(() => api.post("/stocks/adjustment", payload))
 };

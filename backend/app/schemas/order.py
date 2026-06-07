@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 from uuid import UUID
@@ -13,9 +13,28 @@ class OrderItemResponse(ORMModel):
     medicine_id: UUID
     medicine_batch_id: UUID | None
     medicine_name_snapshot: str
+    batch_number_snapshot: str | None = None
+    expired_date_snapshot: date | None = None
     quantity: int
     unit_price: Decimal
     line_total: Decimal
+
+
+class PaymentResponse(ORMModel):
+    id: UUID
+    order_id: UUID
+    order_number: str | None = None
+    patient_name: str | None = None
+    payment_number: str
+    method: str
+    status: str
+    amount: Decimal
+    paid_at: datetime | None = None
+    proof_file_url: str | None = None
+    proof_uploaded_at: datetime | None = None
+    verified_by: UUID | None = None
+    verified_at: datetime | None = None
+    rejection_reason: str | None = None
 
 
 class OrderResponse(ORMModel):
@@ -27,14 +46,37 @@ class OrderResponse(ORMModel):
     status: str
     fulfillment_method: str
     checkout_at: datetime | None
+    customer_name_snapshot: str | None = None
+    customer_phone_snapshot: str | None = None
+    shipping_address_snapshot: str | None = None
+    notes: str | None = None
     subtotal: Decimal
+    discount_amount: Decimal = 0
+    shipping_cost: Decimal = 0
     total_amount: Decimal
     paid_amount: Decimal
+    payment_method: str | None = None
+    payment_status: str | None = None
+    payment_number: str | None = None
+    proof_file_url: str | None = None
+    proof_uploaded_at: datetime | None = None
+    verified_at: datetime | None = None
+    rejection_reason: str | None = None
     items: list[OrderItemResponse] = []
+    payments: list[PaymentResponse] = []
 
 
 class PaymentProofRequest(BaseModel):
     proof_file_url: str
+
+
+class PaymentVerificationRequest(BaseModel):
+    status: Literal["VERIFIED", "REJECTED"]
+    notes: str | None = None
+
+
+class OrderStatusUpdateRequest(BaseModel):
+    status: Literal["PROCESSING", "READY_FOR_PICKUP", "COMPLETED"]
 
 
 class OfflineCartItem(BaseModel):

@@ -22,6 +22,11 @@ def create_batch(payload: BatchCreate, db: Session = Depends(get_db), user: User
     return batch
 
 
+@router.get("/batches")
+def list_batches(db: Session = Depends(get_db), user: User = Depends(require_roles("ADMIN", "APOTEKER"))):
+    return StockService(db).list_batches_with_expiry()
+
+
 @router.post("/adjustment")
 def adjustment(payload: StockAdjustmentRequest, db: Session = Depends(get_db), user: User = Depends(require_roles("ADMIN", "APOTEKER"))):
     batch = StockService(db).adjust(payload, user.id)

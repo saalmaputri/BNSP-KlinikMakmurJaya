@@ -22,8 +22,8 @@ function AuthShell({ title, subtitle, children }) {
       <section className="hidden overflow-hidden bg-primary lg:block">
         <div className="flex h-full flex-col justify-end bg-[url('https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=1400&q=80')] bg-cover bg-center p-12">
           <div className="max-w-xl text-white drop-shadow">
-            <p className="text-sm font-bold uppercase">Sertifikasi BNSP Ready</p>
-            <h3 className="mt-3 text-5xl font-extrabold">Dashboard klinik, apotek, kasir, dan pasien dalam satu sistem.</h3>
+            <p className="text-sm font-bold uppercase">Selamat datang, di</p>
+            <h3 className="mt-3 text-5xl font-extrabold">Klinik Makmur Jaya</h3>
           </div>
         </div>
       </section>
@@ -54,7 +54,7 @@ export function Login() {
   };
 
   return (
-    <AuthShell title="Login Multi-role" subtitle="Pilih role demo atau gunakan kredensial backend.">
+    <AuthShell title="" subtitle="">
       <form className="space-y-4" onSubmit={submit}>
         <label className="block text-sm font-bold text-muted">Role
           <select className="field mt-2" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value, email: demoEmails[e.target.value] })}>
@@ -71,7 +71,6 @@ export function Login() {
           <div className="relative mt-2"><FiLock className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" /><input className="field pl-11" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></div>
         </label>
         <button className="btn-primary w-full" type="submit">Masuk</button>
-        <p className="rounded-2xl bg-surface-low p-3 text-xs font-semibold text-muted">Akun backend default memakai password <b>Password123</b>. Jalankan seeder backend jika akun belum ada.</p>
         <p className="text-center text-sm text-muted">Belum punya akun? <Link className="font-bold text-primary" to="/register">Register</Link></p>
       </form>
     </AuthShell>
@@ -80,7 +79,7 @@ export function Login() {
 
 export function Register() {
   const navigate = useNavigate();
-  const [form, setForm] = useState({ name: "", email: "", password: "", role: "pasien" });
+  const [form, setForm] = useState({ name: "", email: "", password: "", phone: "", date_of_birth: "", gender: "", address: "" });
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -94,6 +93,10 @@ export function Register() {
     if (!form.name.trim()) nextErrors.name = "Nama lengkap wajib diisi.";
     if (!form.email.trim()) nextErrors.email = "Email wajib diisi.";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) nextErrors.email = "Format email tidak valid.";
+    if (!form.phone.trim()) nextErrors.phone = "Nomor telepon wajib diisi.";
+    if (!form.date_of_birth) nextErrors.date_of_birth = "Tanggal lahir wajib diisi.";
+    if (!form.gender) nextErrors.gender = "Jenis kelamin wajib dipilih.";
+    if (!form.address.trim()) nextErrors.address = "Alamat wajib diisi.";
     if (!form.password) nextErrors.password = "Password wajib diisi.";
     else if (form.password.length < 8) nextErrors.password = "Password minimal 8 karakter.";
     else if (!/[A-Z]/.test(form.password)) nextErrors.password = "Password harus memiliki huruf besar.";
@@ -112,7 +115,11 @@ export function Register() {
       const registered = await authService.register({
         ...form,
         name: form.name.trim(),
-        email: form.email.trim().toLowerCase()
+        email: form.email.trim().toLowerCase(),
+        phone: form.phone.trim(),
+        date_of_birth: form.date_of_birth,
+        gender: form.gender,
+        address: form.address.trim()
       });
       Toast.success("Registrasi berhasil, lanjut verifikasi email");
       navigate("/verify-email", {
@@ -163,6 +170,61 @@ export function Register() {
             aria-invalid={Boolean(errors.email)}
           />
           {errors.email && <span className="mt-1 block text-xs text-red-600">{errors.email}</span>}
+        </label>
+        <label className="block text-sm font-bold text-muted">
+          Nomor telepon
+          <input
+            className="field mt-2"
+            type="tel"
+            placeholder="08xxxxxxxxxx"
+            value={form.phone}
+            onChange={(e) => updateField("phone", e.target.value)}
+            required
+            aria-invalid={Boolean(errors.phone)}
+          />
+          {errors.phone && <span className="mt-1 block text-xs text-red-600">{errors.phone}</span>}
+        </label>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block text-sm font-bold text-muted">
+            Tanggal lahir
+            <input
+              className="field mt-2"
+              type="date"
+              value={form.date_of_birth}
+              onChange={(e) => updateField("date_of_birth", e.target.value)}
+              required
+              aria-invalid={Boolean(errors.date_of_birth)}
+            />
+            {errors.date_of_birth && <span className="mt-1 block text-xs text-red-600">{errors.date_of_birth}</span>}
+          </label>
+          <label className="block text-sm font-bold text-muted">
+            Jenis kelamin
+            <select
+              className="field mt-2"
+              value={form.gender}
+              onChange={(e) => updateField("gender", e.target.value)}
+              required
+              aria-invalid={Boolean(errors.gender)}
+            >
+              <option value="">Pilih jenis kelamin</option>
+              <option value="Laki-laki">Laki-laki</option>
+              <option value="Perempuan">Perempuan</option>
+            </select>
+            {errors.gender && <span className="mt-1 block text-xs text-red-600">{errors.gender}</span>}
+          </label>
+        </div>
+        <label className="block text-sm font-bold text-muted">
+          Alamat
+          <textarea
+            className="field mt-2"
+            rows="3"
+            placeholder="Alamat lengkap"
+            value={form.address}
+            onChange={(e) => updateField("address", e.target.value)}
+            required
+            aria-invalid={Boolean(errors.address)}
+          />
+          {errors.address && <span className="mt-1 block text-xs text-red-600">{errors.address}</span>}
         </label>
         <label className="block text-sm font-bold text-muted">
           Password

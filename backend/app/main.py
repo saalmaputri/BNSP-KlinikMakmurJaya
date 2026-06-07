@@ -28,6 +28,10 @@ upload_dir = Path(settings.upload_dir)
 upload_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=upload_dir), name="uploads")
 
+report_dir = Path(settings.report_dir)
+report_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/generated-reports", StaticFiles(directory=report_dir), name="generated-reports")
+
 app.include_router(auth.router)
 app.include_router(dashboard.router)
 app.include_router(medicines.router)

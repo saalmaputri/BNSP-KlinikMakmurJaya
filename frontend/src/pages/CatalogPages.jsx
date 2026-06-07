@@ -8,22 +8,41 @@ import { Toast } from "../components/Toast";
 import { medicineService } from "../services/medicineService";
 import { prescriptionService } from "../services/prescriptionService";
 import { cartService } from "../services/cartService";
-import { normalizeList, rupiah } from "../utils/storage";
+import { authStorage, normalizeList, rupiah } from "../utils/storage";
 import PageHeader from "./PageHeader";
 
-export function CatalogPage({ basePath = "/pasien/products", cartPath = "/pasien/cart" }) {
+export function CatalogPage({ basePath = "/pasien/products", cartPath = "/pasien/cart", allowCartActions = false }) {
+  const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("Semua");
+  const [hasApprovedPrescription, setHasApprovedPrescription] = useState(false);
 
   useEffect(() => {
+    let active = true;
     medicineService.list().then((data) => setItems(normalizeList(data))).catch((error) => Toast.error(error?.response?.data?.message || "Gagal memuat katalog dari backend"));
+    const syncPrescriptionStatus = () => {
+      const user = authStorage.getUser();
+      if (user?.role !== "pasien") {
+        if (active) setHasApprovedPrescription(true);
+        return Promise.resolve();
+      }
+      return prescriptionService.mine()
+        .then((data) => {
+          if (!active) return;
+          setHasApprovedPrescription(Array.isArray(data) && data.some((item) => item.status === "APPROVED"));
+        })
+        .catch(() => {
+          if (active) setHasApprovedPrescription(false);
+        });
+    };
+    syncPrescriptionStatus();
+    const timer = window.setInterval(syncPrescriptionStatus, 5000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
   }, []);
-
-  const addToCart = async (product) => {
-    await cartService.add({ medicine_id: product.id, quantity: 1 });
-    Toast.success("Produk ditambahkan ke keranjang");
-  };
 
   const filtered = useMemo(() => {
     return items
@@ -64,7 +83,23 @@ export function CatalogPage({ basePath = "/pasien/products", cartPath = "/pasien
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-        {filtered.map((product) => <ProductCard key={product.id} product={product} detailPath={`${basePath}/${product.id}`} onAdd={addToCart} />)}
+        {filtered.map((product) => (
+          <ProductCard
+            key={product.id}
+            product={product}
+            detailPath={`${basePath}/${product.id}`}
+            onAdd={allowCartActions ? async (item) => {
+              if (item.requires_prescription && !hasApprovedPrescription) {
+                navigate(`/pasien/prescriptions/upload?medicine_id=${item.id}`);
+                return;
+              }
+              await cartService.add({ medicine_id: item.id, quantity: 1 });
+              Toast.success("Produk ditambahkan ke keranjang");
+            } : undefined}
+            onRequestPrescription={allowCartActions ? (item) => navigate(`/pasien/prescriptions/upload?medicine_id=${item.id}`) : undefined}
+            canAddPrescription={hasApprovedPrescription}
+          />
+        ))}
       </div>
     </div>
   );
@@ -75,6 +110,7 @@ export function DetailObat({ cartPath = "/pasien/cart", catalogPath = "/pasien/c
   const navigate = useNavigate();
   const [product, setProduct] = useState(null);
   const [batches, setBatches] = useState([]);
+  const [hasApprovedPrescription, setHasApprovedPrescription] = useState(false);
   useEffect(() => {
     let alive = true;
     Promise.all([
@@ -87,13 +123,35 @@ export function DetailObat({ cartPath = "/pasien/cart", catalogPath = "/pasien/c
         setBatches(normalizeList(batchData));
       })
       .catch((error) => Toast.error(error?.response?.data?.message || "Gagal memuat detail obat"));
+    const syncPrescriptionStatus = () => {
+      const user = authStorage.getUser();
+      if (user?.role !== "pasien") {
+        if (alive) setHasApprovedPrescription(true);
+        return Promise.resolve();
+      }
+      return prescriptionService.mine()
+        .then((data) => {
+          if (!alive) return;
+          setHasApprovedPrescription(Array.isArray(data) && data.some((item) => item.status === "APPROVED"));
+        })
+        .catch(() => {
+          if (alive) setHasApprovedPrescription(false);
+        });
+    };
+    syncPrescriptionStatus();
+    const timer = window.setInterval(syncPrescriptionStatus, 5000);
     return () => {
       alive = false;
+      window.clearInterval(timer);
     };
   }, [id]);
   if (!product) return null;
 
   const addToCart = async () => {
+    if (product.requires_prescription && !hasApprovedPrescription) {
+      Toast.warning("Upload resep dan tunggu verifikasi apoteker terlebih dahulu");
+      return;
+    }
     await cartService.add({ medicine_id: product.id, quantity: 1 });
     Toast.success("Produk ditambahkan ke keranjang");
   };
@@ -101,6 +159,7 @@ export function DetailObat({ cartPath = "/pasien/cart", catalogPath = "/pasien/c
     await addToCart();
     navigate(cartPath);
   };
+  const prescriptionFlow = product.requires_prescription && !hasApprovedPrescription;
   const stockReady = Number(product.current_stock || 0) > Number(product.minimum_stock || 0);
   const batchColumns = [
     { key: "batch_number", label: "Batch" },
@@ -162,19 +221,33 @@ export function DetailObat({ cartPath = "/pasien/cart", catalogPath = "/pasien/c
                 <FiInfo className="mt-1 text-primary" />
                 <div>
                   <h3 className="font-extrabold text-primary">Perhatian Khusus</h3>
-                  <p className="mt-1 text-sm text-muted">Obat ini membutuhkan resep dokter yang valid. Silakan unggah foto resep sebelum melanjutkan ke pembayaran.</p>
+                  <p className="mt-1 text-sm text-muted">
+                    Obat ini membutuhkan resep dokter yang valid. Upload foto resep dulu, ajukan ke apoteker atau admin, lalu tunggu verifikasi sebelum bisa masuk keranjang dan lanjut checkout. Resep yang sudah dipakai hanya berlaku untuk satu transaksi.
+                  </p>
                 </div>
               </div>
-              <Link to="/pasien/prescriptions/upload" className="flex w-full items-center justify-center gap-3 rounded-lg border-2 border-dashed border-primary py-5 font-extrabold text-primary transition hover:bg-primary hover:text-white">
-                <FiUpload /> Upload Resep Dokter
-              </Link>
+              {prescriptionFlow ? (
+                <Link to={`/pasien/prescriptions/upload?medicine_id=${product.id}`} className="flex w-full items-center justify-center gap-3 rounded-lg border-2 border-dashed border-primary py-5 font-extrabold text-primary transition hover:bg-primary hover:text-white">
+                  <FiUpload /> Upload Resep Dokter
+                </Link>
+              ) : (
+                <div className="rounded-xl bg-secondary-soft p-4 text-sm font-semibold text-secondary">Resep sudah diverifikasi. Kamu bisa masukkan obat ini ke keranjang dan lanjut checkout.</div>
+              )}
             </div>
           )}
 
           {showPurchaseActions && (
             <div className="mt-auto grid gap-4 sm:grid-cols-2">
-              <button className="btn-primary h-16 text-base" onClick={buyNow}>Beli Sekarang</button>
-              <button className="btn-secondary h-16 border-2 border-primary text-base" onClick={addToCart}><FiShoppingCart /> Tambah ke Keranjang</button>
+              {prescriptionFlow ? (
+                <>
+                  <Link to={`/pasien/prescriptions/upload?medicine_id=${product.id}`} className="btn-primary h-16 text-base flex items-center justify-center">Ajukan Resep</Link>
+                </>
+              ) : (
+                <>
+                  <button className="btn-primary h-16 text-base" onClick={buyNow}>Beli Sekarang</button>
+                  <button className="btn-secondary h-16 border-2 border-primary text-base" onClick={addToCart}><FiShoppingCart /> Tambah ke Keranjang</button>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -215,15 +288,20 @@ function ProductField({ label, value }) {
 export function UploadPrescription() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ order_id: searchParams.get("order_id") || "", file: null, doctor_name: "", prescription_number: "", notes: "" });
+  const [form, setForm] = useState({ order_id: searchParams.get("order_id") || "", medicine_id: searchParams.get("medicine_id") || "", file: null, doctor_name: "", prescription_number: "", notes: "" });
   const [submitting, setSubmitting] = useState(false);
   const submit = async () => {
-    if (!form.order_id || !form.file || !form.doctor_name.trim() || !form.prescription_number.trim()) return Toast.warning("Order ID, gambar resep, nama dokter, dan nomor resep wajib diisi");
+    if (!form.file || !form.doctor_name.trim() || !form.prescription_number.trim()) return Toast.warning("Gambar resep, nama dokter, dan nomor resep wajib diisi");
     setSubmitting(true);
     try {
-      await prescriptionService.upload(form);
+      let orderId = form.order_id;
+      if (!orderId) {
+        const draft = await prescriptionService.request();
+        orderId = draft.id;
+      }
+      await prescriptionService.upload({ ...form, order_id: orderId });
       Toast.success("Resep berhasil diupload");
-      navigate(`/pasien/orders/${form.order_id}`);
+      navigate(`/pasien/checkout/success/${orderId}`);
     } catch (error) {
       Toast.error(error?.response?.data?.detail || error?.message || "Resep gagal diupload");
     } finally {
@@ -232,9 +310,10 @@ export function UploadPrescription() {
   };
   return (
     <>
-      <PageHeader title="Upload Resep" subtitle="Upload resep dokter untuk diverifikasi apoteker." />
+      <PageHeader title="Upload Resep" subtitle="Upload foto resep dulu, lalu kirim untuk verifikasi apoteker atau admin. Satu resep hanya dipakai untuk satu transaksi." />
       <div className="glass-card max-w-2xl space-y-4 p-6">
         <input className="field" placeholder="Order ID" value={form.order_id} readOnly={Boolean(searchParams.get("order_id"))} onChange={(e) => setForm({ ...form, order_id: e.target.value })} />
+        <input className="field" placeholder="ID obat (opsional)" value={form.medicine_id} readOnly={Boolean(searchParams.get("medicine_id"))} onChange={(e) => setForm({ ...form, medicine_id: e.target.value })} />
         <UploadPreview label="Foto resep dokter" onChange={(file) => setForm({ ...form, file })} />
         <input className="field" placeholder="Nama dokter" value={form.doctor_name} onChange={(e) => setForm({ ...form, doctor_name: e.target.value })} />
         <input className="field" placeholder="Nomor resep" value={form.prescription_number} onChange={(e) => setForm({ ...form, prescription_number: e.target.value })} />

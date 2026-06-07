@@ -51,7 +51,7 @@ flowchart LR
 | Admin | Master data, transaksi, laporan, sistem |
 | Apoteker | Verifikasi resep, stok, kadaluarsa |
 | Kasir | POS offline, checkout, riwayat |
-| Pasien | Katalog, cart, checkout, resep, status pesanan |
+| Pasien | Katalog, cart, checkout pickup-only, resep, status pesanan |
 | Tim IT | Deployment, monitoring, backup, keamanan |
 
 ### Timeline Ringkas
@@ -71,7 +71,7 @@ flowchart LR
 | Auth | JWT untuk semua protected request |
 | Medicine | Katalog, cart, stok, laporan, import |
 | Cart/Checkout | Medicine, stock validation, order, payment |
-| Prescription | Order pasien, validasi apoteker |
+| Prescription | Order pasien, validasi apoteker/admin |
 | Stock | Medicine batch, checkout FIFO, alert |
 | Report | Order, payment, medicine, stock |
 | Notification | Stok kritis, pesanan, error |
@@ -84,10 +84,10 @@ flowchart LR
 - Registrasi/login/logout/verify email/refresh token.
 - Role-based dashboard dan menu.
 - CRUD obat, kategori, supplier, pelanggan.
-- Katalog, detail obat, cart, checkout online.
+- Katalog, detail obat, cart, checkout online pickup-only.
 - POS kasir dan checkout offline.
 - Upload resep, verifikasi/reject resep.
-- Upload bukti pembayaran.
+- Upload bukti pembayaran dan verifikasi manual admin.
 - Stok, batch, adjustment, stok kritis, kadaluarsa.
 - Laporan penjualan, revenue, best-selling, PDF.
 - Import CSV/Excel obat.
@@ -335,8 +335,8 @@ def fuzzy_search(keyword, medicines, threshold=0.6):
 ```python
 def calculate_cart_total(items):
     subtotal = sum(item.quantity * item.unit_price_snapshot for item in items)
-    shipping_cost = 0 if fulfillment_method == "PICKUP" else 10000
-    return subtotal + shipping_cost
+    service_cost = 0
+    return subtotal + service_cost
 ```
 
 ### Validasi Stok Checkout

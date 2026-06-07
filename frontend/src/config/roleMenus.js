@@ -31,7 +31,9 @@ export const roleMenus = {
   admin: [
     { label: "Dashboard", path: "/admin/dashboard", icon: FiHome, design: "dashboard_utama_admin_modern" },
     { label: "Manajemen Obat", path: "/admin/medicines", icon: FiBox, design: "manajemen_obat_stok" },
+    { label: "Supplier", path: "/admin/suppliers", icon: FiDatabase, design: "manajemen_supplier_obat" },
     { label: "Transaksi", path: "/admin/transactions", icon: FiClipboard, design: "manajemen_transaksi_penjualan" },
+    { label: "Pembayaran", path: "/admin/payments", icon: FiBookOpen, design: "verifikasi_bukti_pembayaran" },
     { label: "Resep", path: "/admin/prescriptions", icon: FiFileText, design: "manajemen_verifikasi_resep" },
     { label: "Laporan", path: "/admin/reports", icon: FiBarChart2, design: "laporan_analistik_penjualan" },
     { label: "Sistem", path: "/admin/system", icon: FiSettings, design: "sistem_log_panduan_pengguna" }

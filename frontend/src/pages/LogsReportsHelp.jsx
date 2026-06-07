@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { FiActivity, FiDatabase, FiDownload, FiFilter, FiGlobe, FiSearch, FiShield, FiUpload, FiUser } from "react-icons/fi";
+import { useEffect, useMemo, useState } from "react";
+import { FiActivity, FiCalendar, FiClock, FiDatabase, FiDownload, FiFilter, FiGlobe, FiPackage, FiSearch, FiShield, FiUpload, FiUser } from "react-icons/fi";
 import { Link } from "react-router-dom";
 import ChartCard from "../components/ChartCard";
 import DataTable from "../components/DataTable";
@@ -243,49 +243,202 @@ function getRoleTone(role) {
 }
 
 export function SalesReport() {
-  const [data, setData] = useState(null);
-  const [revenue, setRevenue] = useState(null);
-  const [bestSelling, setBestSelling] = useState(null);
-  const [jobId, setJobId] = useState("");
-  const [job, setJob] = useState(null);
+  const [periodPreset, setPeriodPreset] = useState("3m");
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState("all");
+  const [range, setRange] = useState(getRange("3m"));
+  const [salesData, setSalesData] = useState([]);
+  const [revenueData, setRevenueData] = useState([]);
+  const [bestSellingData, setBestSellingData] = useState([]);
+
   useEffect(() => {
-    reportService.sales().then(setData).catch((error) => Toast.error(error?.response?.data?.message || "Gagal memuat laporan"));
-    reportService.revenue().then(setRevenue).catch(() => setRevenue(null));
-    reportService.bestSelling().then(setBestSelling).catch(() => setBestSelling(null));
-  }, []);
+    const nextRange = getRange(periodPreset);
+    setRange(nextRange);
+    Promise.all([
+      reportService.sales(nextRange),
+      reportService.revenue(nextRange),
+      reportService.bestSelling()
+    ])
+      .then(([salesRows, revenueRows, bestRows]) => {
+        setSalesData(Array.isArray(salesRows) ? salesRows : []);
+        setRevenueData(Array.isArray(revenueRows) ? revenueRows : []);
+        setBestSellingData(normalizeList(bestRows));
+      })
+      .catch((error) => Toast.error(error?.response?.data?.message || "Gagal memuat laporan"));
+  }, [periodPreset]);
+
+  const updatePreset = (value) => {
+    setPeriodPreset(value);
+  };
+
   const exportPdf = async () => {
-    const created = await reportService.generatePdf();
-    setJobId(created?.id || created?.job_id || "");
-    Toast.success("Job export PDF dibuat di backend");
+    try {
+      const currentRange = getRange(periodPreset);
+      await reportService.generatePdf(currentRange);
+      Toast.success("Job export PDF dibuat di backend");
+    } catch (error) {
+      Toast.error(error?.response?.data?.message || error?.message || "Gagal membuat job PDF");
+    }
   };
-  const checkJob = async () => {
-    if (!jobId) return Toast.warning("Isi job ID laporan");
-    setJob(await reportService.job(jobId));
-  };
-  const bestSellingRows = normalizeList(bestSelling?.items || bestSelling?.data || []);
-  const salesRows = normalizeList(data);
-  const revenueRows = normalizeList(revenue);
-  const grossSales = salesRows.reduce((sum, row) => sum + Number(row.gross_sales || 0), 0);
-  const monthlyGrossSales = revenueRows.reduce((sum, row) => sum + Number(row.gross_sales || 0), 0);
+  const bestSellingRows = useMemo(() => {
+    return normalizeList(bestSellingData)
+      .filter((row) => {
+        const text = `${row.name || row.medicine_name || ""} ${row.sku || ""}`.toLowerCase();
+        const matchesQuery = !query || text.includes(query.toLowerCase());
+        const matchesCategory = category === "all" || category === "medicine";
+        return matchesQuery && matchesCategory;
+      })
+      .slice(0, 8);
+  }, [bestSellingData, query, category]);
+
+  const chartRows = useMemo(() => {
+    return revenueData.map((row) => ({
+      name: formatPeriod(row.period),
+      sales: Number(row.gross_sales || 0),
+      orders: Number(row.total_orders || 0)
+    }));
+  }, [revenueData]);
+
+  const grossSales = salesData.reduce((sum, row) => sum + Number(row.gross_sales || 0), 0);
+  const verifiedSales = salesData.reduce((sum, row) => sum + Number(row.paid_sales || 0), 0);
+  const totalOrders = salesData.reduce((sum, row) => sum + Number(row.total_orders || 0), 0);
+  const monthlyGrossSales = revenueData.reduce((sum, row) => sum + Number(row.gross_sales || 0), 0);
+  const growth = calcGrowth(revenueData);
+  const maxBest = Math.max(...bestSellingRows.map((item) => Number(item.total_sold || 0)), 1);
+
   return (
     <>
-      <PageHeader title="Sales Report" subtitle="Analisis pendapatan, transaksi, dan obat terlaris." action={<button className="btn-primary" onClick={exportPdf}><FiDownload /> Export PDF</button>} />
-      <div className="grid gap-6 xl:grid-cols-3">
-        <div className="xl:col-span-2"><ChartCard title="Pendapatan" subtitle={`Total ${rupiah(grossSales)}`} data={salesRows.map((row) => ({ name: formatDate(row.period), sales: row.gross_sales, orders: row.total_orders }))} type="line" /></div>
-        <div className="glass-card p-6">
-          <h3 className="text-xl font-extrabold text-primary">Obat Terlaris</h3>
-          {bestSellingRows.map((item, index) => <ReportRank key={item.id || item.name || index} item={item.name || item.medicine_name} value={`${item.total_sold || 0} terjual`} index={index} />)}
-          {!bestSellingRows.length && <p className="mt-4 rounded-2xl bg-surface-low p-4 text-sm text-muted">Belum ada penjualan terverifikasi pada database.</p>}
+      <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+        <div>
+          <h2 className="text-5xl font-extrabold tracking-tight text-primary">Laporan Penjualan</h2>
+          <p className="mt-2 text-lg text-muted">Analisis pendapatan dan performa inventaris klinik.</p>
         </div>
-        <div className="glass-card p-6 xl:col-span-3">
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="rounded-2xl bg-surface-low p-4"><p className="text-sm font-bold text-muted">Revenue Bulanan</p><p className="mt-2 text-2xl font-extrabold text-primary">{rupiah(monthlyGrossSales)}</p></div>
-            <div className="rounded-2xl bg-surface-low p-4"><p className="text-sm font-bold text-muted">PDF Job ID</p><p className="mt-2 truncate text-lg font-extrabold text-primary">{jobId || "-"}</p></div>
-            <div className="rounded-2xl bg-surface-low p-4"><p className="text-sm font-bold text-muted">Status Job</p><p className="mt-2 text-lg font-extrabold text-primary">{job?.status || job?.message || "-"}</p></div>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 rounded-full border border-outline/40 bg-white px-4 py-3 text-sm font-semibold text-muted">
+            <FiCalendar className="text-primary" />
+            <span>{periodLabel(range.start_date, range.end_date)}</span>
           </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
-            <input className="field" placeholder="Cek report job ID" value={jobId} onChange={(e) => setJobId(e.target.value)} />
-            <button className="btn-secondary" onClick={checkJob}>Cek Job</button>
+          <button type="button" className="btn-primary px-8 py-4 text-base" onClick={exportPdf}>
+            <FiDownload /> Export PDF Laporan
+          </button>
+        </div>
+      </div>
+      <div className="mb-6 flex flex-col gap-4 rounded-3xl border border-transparent bg-white/0 xl:flex-row xl:items-center">
+        <label className="relative flex-1">
+          <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" />
+          <input
+            className="field h-14 rounded-full border-0 bg-surface-low pl-12"
+            placeholder="Cari laporan..."
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
+        <div className="flex flex-wrap gap-3">
+          <select className="field h-14 rounded-full border-0 bg-surface-low px-5" value={category} onChange={(event) => setCategory(event.target.value)}>
+            <option value="all">Semua Kategori</option>
+            <option value="medicine">Obat-obatan</option>
+          </select>
+          <select className="field h-14 rounded-full border-0 bg-surface-low px-5" value={periodPreset} onChange={(event) => updatePreset(event.target.value)}>
+            <option value="3m">Periode: 3 Bulan Terakhir</option>
+            <option value="1m">Bulan Ini</option>
+            <option value="12m">Tahun Ini</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-12">
+        <div className="xl:col-span-8">
+          <div className="glass-card rounded-3xl p-6">
+            <div className="mb-8 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-extrabold uppercase tracking-wider text-muted">Total Pendapatan</p>
+                <h3 className="mt-2 text-3xl font-extrabold text-primary">{rupiah(grossSales)}</h3>
+              </div>
+              <div className="flex gap-2">
+                <span className="h-2 w-2 rounded-full bg-primary" />
+                <span className="h-2 w-2 rounded-full bg-outline/40" />
+              </div>
+            </div>
+            <div className="h-[360px]">
+              <ChartCard
+                data={chartRows}
+                type="bar"
+                valueKey="sales"
+                tooltipFormatter={(value) => rupiah(value)}
+                yAxisFormatter={(value) => `${Math.round(Number(value || 0) / 1000000)}jt`}
+                hideHeader
+                className="border-0 bg-transparent p-0 shadow-none"
+                chartHeight="h-[320px]"
+              />
+            </div>
+          </div>
+        </div>
+        <div className="space-y-6 xl:col-span-4">
+          <StatBox
+            label="Pertumbuhan Pendapatan"
+            value={`${growth >= 0 ? "+" : ""}${growth.toFixed(1)}%`}
+            tone="success"
+            icon={FiActivity}
+          />
+          <StatBox
+            label="Transaksi Baru"
+            value={totalOrders.toLocaleString("id-ID")}
+            tone="primary"
+            icon={FiDatabase}
+          />
+          <StatBox
+            label="Pendapatan Terverifikasi"
+            value={rupiah(verifiedSales)}
+            tone="secondary"
+            icon={FiClock}
+          />
+        </div>
+
+        <div className="glass-card overflow-hidden xl:col-span-7">
+          <div className="flex items-center justify-between border-b border-outline/40 px-6 py-5">
+            <div>
+              <h3 className="text-2xl font-extrabold text-primary">Obat Terlaris</h3>
+              <p className="text-sm text-muted">Jumlah item yang benar-benar terjual.</p>
+            </div>
+          </div>
+          <div className="space-y-5 p-6">
+            {bestSellingRows.map((item, index) => {
+              const qty = Number(item.total_sold || 0);
+              const pct = Math.max(6, Math.round((qty / maxBest) * 100));
+              const colors = ["#003f87", "#006e25", "#973d00"];
+              return (
+                <div key={item.id || item.sku || item.name || index} className="flex items-center gap-4">
+                  <div className="grid h-12 w-12 place-items-center rounded-2xl bg-primary-soft text-primary">
+                    <FiPackage />
+                  </div>
+                  <div className="flex-1">
+                    <div className="mb-2 flex items-center justify-between gap-4">
+                      <span className="font-semibold text-primary">{String(item.name || item.medicine_name || "-")}</span>
+                      <span className="text-sm font-semibold text-muted">{qty.toLocaleString("id-ID")} terjual</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-surface-low">
+                      <div className="h-2 rounded-full" style={{ width: `${pct}%`, backgroundColor: colors[index % colors.length] }} />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            {!bestSellingRows.length && <p className="text-sm text-muted">Belum ada data obat terlaris.</p>}
+          </div>
+        </div>
+
+        <div className="glass-card overflow-hidden xl:col-span-5">
+          <div className="flex items-center justify-between border-b border-outline/40 px-6 py-5">
+            <div>
+              <h3 className="text-2xl font-extrabold text-primary">Ringkasan Analitik</h3>
+              <p className="text-sm text-muted">Metrik penting dari backend laporan.</p>
+            </div>
+          </div>
+          <div className="grid gap-3 p-6">
+            <MiniMetric label="Revenue Bulanan" value={rupiah(monthlyGrossSales)} />
+            <MiniMetric label="Pertumbuhan Pendapatan" value={`${growth >= 0 ? "+" : ""}${growth.toFixed(1)}%`} />
+            <MiniMetric label="Transaksi Baru" value={totalOrders.toLocaleString("id-ID")} />
+            <MiniMetric label="Pendapatan Terverifikasi" value={rupiah(verifiedSales)} />
           </div>
         </div>
       </div>
@@ -293,32 +446,140 @@ export function SalesReport() {
   );
 }
 
-function ReportRank({ item, value, index }) {
-  return <div className="mt-5"><div className="mb-2 flex justify-between text-sm font-bold"><span>{item}</span><span>{value}</span></div><div className="h-2 rounded-full bg-surface-high"><div className="h-2 rounded-full bg-primary" style={{ width: `${85 - index * 15}%` }} /></div></div>;
+function StatBox({ label, value, tone = "primary", icon: Icon }) {
+  const tones = {
+    primary: "border-primary text-primary bg-primary-soft/20",
+    success: "border-secondary text-secondary bg-secondary-soft/20",
+    secondary: "border-tertiary text-tertiary bg-tertiary-fixed/30"
+  };
+  return (
+    <div className={`glass-card flex items-center justify-between rounded-3xl border-l-4 p-6 ${tones[tone] || tones.primary}`}>
+      <div>
+        <p className="text-sm font-semibold text-muted">{label}</p>
+        <p className="mt-2 text-2xl font-extrabold text-primary">{value}</p>
+      </div>
+      <div className="grid h-14 w-14 place-items-center rounded-full bg-white text-primary shadow-sm">
+        <Icon />
+      </div>
+    </div>
+  );
+}
+
+function MiniMetric({ label, value }) {
+  return (
+    <div className="rounded-2xl bg-surface-low p-4">
+      <p className="text-sm font-bold text-muted">{label}</p>
+      <p className="mt-2 text-lg font-extrabold text-primary">{value}</p>
+    </div>
+  );
+}
+
+function getRange(preset) {
+  const end = new Date();
+  const start = new Date();
+  if (preset === "1m") {
+    start.setDate(end.getDate() - 30);
+  } else if (preset === "12m") {
+    start.setMonth(end.getMonth() - 12);
+  } else {
+    start.setMonth(end.getMonth() - 3);
+  }
+  return {
+    start_date: start.toISOString().slice(0, 10),
+    end_date: end.toISOString().slice(0, 10)
+  };
+}
+
+function periodLabel(startDate, endDate) {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return "-";
+  return `${monthNameId(start)} - ${monthNameId(end)}`;
+}
+
+function monthNameId(date) {
+  return new Intl.DateTimeFormat("id-ID", { month: "short", year: "numeric" }).format(date).replace(".", "");
+}
+
+function formatPeriod(value) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return new Intl.DateTimeFormat("id-ID", { month: "short" }).format(date).replace(".", "");
+}
+
+function calcGrowth(rows) {
+  if (!Array.isArray(rows) || rows.length < 2) return 0;
+  const current = Number(rows[rows.length - 1]?.gross_sales || 0);
+  const previous = Number(rows[rows.length - 2]?.gross_sales || 0);
+  if (!previous) return 0;
+  return ((current - previous) / previous) * 100;
+}
+
+function InfoPill({ label, value, icon: Icon }) {
+  return (
+    <div className="rounded-2xl bg-surface-low p-4">
+      <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wide text-muted">
+        <Icon className="text-sm" />
+        <span>{label}</span>
+      </div>
+      <p className="mt-2 break-all text-sm font-bold text-primary">{value}</p>
+    </div>
+  );
+}
+
+function normalizeJob(payload) {
+  if (!payload) return null;
+  if (payload.data && typeof payload.data === "object") return payload.data;
+  if (payload.job && typeof payload.job === "object") return payload.job;
+  if (payload.item && typeof payload.item === "object") return payload.item;
+  return payload;
 }
 
 export function ImportPage() {
-  const [filePath, setFilePath] = useState("");
+  const [file, setFile] = useState(null);
   const [jobId, setJobId] = useState("");
   const [job, setJob] = useState(null);
   const submit = async () => {
-    const created = await importService.medicines({ file_path: filePath });
-    setJobId(created?.id || created?.job_id || "");
-    Toast.success("Import job masuk antrean");
+    if (!file) return Toast.warning("Pilih file CSV atau Excel terlebih dahulu");
+    try {
+      const created = await importService.medicines(file);
+      const nextJobId = created?.id || created?.job_id || "";
+      setJobId(nextJobId);
+      setJob(created);
+      Toast.success("Import job masuk antrean");
+    } catch (error) {
+      Toast.error(error?.response?.data?.detail || error?.response?.data?.message || error?.message || "Gagal mengirim file import");
+    }
   };
   const checkJob = async () => {
     if (!jobId) return Toast.warning("Isi job ID import");
-    setJob(await importService.job(jobId));
+    try {
+      setJob(await importService.job(jobId));
+    } catch (error) {
+      Toast.error(error?.response?.data?.detail || error?.response?.data?.message || error?.message || "Gagal memuat job import");
+    }
   };
   return (
     <>
       <PageHeader title="Import CSV/Excel" subtitle="Import master obat dari file CSV atau Excel." />
       <div className="glass-card max-w-3xl p-6">
-        <input className="field" placeholder="Path file di server backend, contoh: C:\\data\\obat.xlsx" value={filePath} onChange={(e) => setFilePath(e.target.value)} />
-        <button className="btn-primary mt-6" onClick={submit}><FiUpload /> Import Data</button>
+        <label className="block text-sm font-bold text-muted">
+          File CSV / Excel
+          <input
+            className="field mt-2"
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            onChange={(event) => setFile(event.target.files?.[0] || null)}
+          />
+        </label>
+        <p className="mt-2 text-xs text-muted">
+          Upload file langsung dari komputer. Sistem akan membuat job import dan memproses data di backend.
+        </p>
+        <button type="button" className="btn-primary mt-6" onClick={submit} disabled={!file}><FiUpload /> Import Data</button>
         <div className="mt-6 grid gap-3 md:grid-cols-[1fr_auto]">
           <input className="field" placeholder="Cek import job ID" value={jobId} onChange={(e) => setJobId(e.target.value)} />
-          <button className="btn-secondary" onClick={checkJob}>Cek Status</button>
+          <button type="button" className="btn-secondary" onClick={checkJob}>Cek Status</button>
         </div>
         {job && <pre className="mt-4 max-h-56 overflow-auto rounded-2xl bg-surface-low p-4 text-xs font-semibold text-primary">{JSON.stringify(job, null, 2)}</pre>}
       </div>
