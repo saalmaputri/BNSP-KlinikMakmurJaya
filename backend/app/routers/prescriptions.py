@@ -24,7 +24,7 @@ def prescription_response(prescription) -> PrescriptionResponse:
 
 @router.post("/upload", response_model=PrescriptionResponse)
 async def upload(
-    order_id: UUID = Form(...),
+    order_id: str | None = Form(None),
     prescription_image: UploadFile = File(...),
     doctor_name: str = Form(...),
     prescription_number: str = Form(...),
@@ -33,14 +33,24 @@ async def upload(
     user: User = Depends(require_roles("PASIEN")),
 ):
     file_url = await save_uploaded_image(prescription_image, "prescriptions")
+    request_service = PrescriptionService(db)
+    parsed_order_id: UUID | None = None
+    if order_id:
+        try:
+            parsed_order_id = UUID(str(order_id))
+        except (TypeError, ValueError):
+            parsed_order_id = None
+    if not parsed_order_id:
+        draft_order = request_service.request(user.id)
+        parsed_order_id = draft_order.id
     payload = PrescriptionUploadRequest(
-        order_id=order_id,
+        order_id=parsed_order_id,
         doctor_name=doctor_name,
         prescription_number=prescription_number,
         file_url=file_url,
         notes=notes,
     )
-    prescription = PrescriptionService(db).upload(user.id, payload)
+    prescription = request_service.upload(user.id, payload)
     db.commit()
     db.refresh(prescription)
     return prescription_response(prescription)

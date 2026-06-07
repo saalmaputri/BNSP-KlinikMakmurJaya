@@ -6,10 +6,23 @@ import ProductCard from "../components/ProductCard";
 import UploadPreview from "../components/UploadPreview";
 import { Toast } from "../components/Toast";
 import { medicineService } from "../services/medicineService";
+import { orderService } from "../services/orderService";
 import { prescriptionService } from "../services/prescriptionService";
 import { cartService } from "../services/cartService";
 import { authStorage, normalizeList, rupiah } from "../utils/storage";
 import PageHeader from "./PageHeader";
+
+const formatValidationError = (error, fallback) => {
+  const detail = error?.response?.data?.detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => item?.msg || item?.message || item?.loc?.slice?.(-1)?.[0] || "")
+      .filter(Boolean)
+      .join(", ");
+  }
+  if (typeof detail === "string" && detail.trim()) return detail;
+  return error?.response?.data?.message || error?.message || fallback;
+};
 
 export function CatalogPage({ basePath = "/pasien/products", cartPath = "/pasien/cart", allowCartActions = false }) {
   const navigate = useNavigate();
@@ -19,7 +32,7 @@ export function CatalogPage({ basePath = "/pasien/products", cartPath = "/pasien
   const isPatient = authStorage.getUser()?.role === "pasien";
 
   useEffect(() => {
-    medicineService.list().then((data) => setItems(normalizeList(data))).catch((error) => Toast.error(error?.response?.data?.message || "Gagal memuat katalog dari backend"));
+    medicineService.list().then((data) => setItems(normalizeList(data))).catch((error) => Toast.error(error?.response?.data?.message || "Gagal memuat katalog obat"));
   }, []);
 
   const filtered = useMemo(() => {
@@ -253,10 +266,12 @@ export function UploadPrescription() {
       if (!orderId) {
         const draft = await prescriptionService.request();
         orderId = draft?.id || draft?.order_id || "";
+        if (orderId) setForm((current) => ({ ...current, order_id: String(orderId) }));
       }
-      const uploaded = await prescriptionService.upload({ ...form, order_id: orderId });
-      const nextOrderId = uploaded?.order_id || orderId;
-      const nextOrderNumber = uploaded?.order_number || uploaded?.order?.order_number || nextOrderId;
+      const uploaded = await prescriptionService.upload({ ...form, order_id: String(orderId || "") });
+      const orderDetail = orderId ? await orderService.detail(orderId).catch(() => null) : null;
+      const nextOrderId = orderDetail?.id || uploaded?.order_id || orderId;
+      const nextOrderNumber = orderDetail?.order_number || uploaded?.order_number || uploaded?.order?.order_number || nextOrderId;
       if (!nextOrderId) {
         Toast.warning("Resep berhasil diupload, tetapi ID pesanan tidak ditemukan");
         navigate("/pasien/orders", { replace: true });
@@ -270,7 +285,7 @@ export function UploadPrescription() {
         uploadedAt: uploaded?.uploaded_at || new Date().toISOString()
       });
     } catch (error) {
-      Toast.error(error?.response?.data?.detail || error?.message || "Resep gagal diupload");
+      Toast.error(formatValidationError(error, "Resep gagal diupload"));
     } finally {
       setSubmitting(false);
     }

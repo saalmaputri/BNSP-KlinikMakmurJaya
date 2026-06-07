@@ -40,8 +40,10 @@ const formatDate = (value) => {
 };
 const getOrderPhase = (order = {}, prescription = null, payment = null) => {
   const needsRx = requiresPrescription(order);
-  const needsUpload = needsRx && !prescription?.file_url;
-  const rxResolved = prescription?.status === "APPROVED" || ["PENDING_PAYMENT", "PAID", "PROCESSING", "READY_FOR_PICKUP", "COMPLETED"].includes(order.status);
+  const prescriptionUploaded = Boolean(prescription?.file_url);
+  const prescriptionVerified = prescription?.status === "APPROVED";
+  const prescriptionRejected = prescription?.status === "REJECTED";
+  const showPrescriptionSteps = needsRx || prescriptionUploaded || prescriptionVerified || prescriptionRejected || ["WAITING_PRESCRIPTION", "PRESCRIPTION_REVIEW"].includes(order.status);
   const paymentReady = order.status === "PENDING_PAYMENT";
   const paymentWaiting = payment?.status === "WAITING_VERIFICATION";
   const paymentVerified = payment?.status === "VERIFIED";
@@ -49,38 +51,12 @@ const getOrderPhase = (order = {}, prescription = null, payment = null) => {
   const packagingDone = ["READY_FOR_PICKUP", "COMPLETED"].includes(order.status);
   const pickupDone = ["READY_FOR_PICKUP", "COMPLETED"].includes(order.status);
 
-  return [
+  const steps = [
     {
       key: "checkout",
       label: "Checkout",
       detail: `Dilakukan pada ${formatDateTime(order.checkout_at)}`,
       state: order.checkout_at ? "done" : "active"
-    },
-    {
-      key: "upload_prescription",
-      label: needsRx ? "Upload Resep" : "Resep",
-      detail: needsRx
-        ? prescription?.file_url
-          ? `Resep sudah diunggah${prescription?.uploaded_at ? ` • ${formatDateTime(prescription.uploaded_at)}` : ""}`
-          : "Unggah resep dokter setelah pesanan dibuat"
-        : "Tidak diperlukan",
-      state: needsRx ? (prescription?.file_url ? "done" : "active") : "done"
-    },
-    {
-      key: "prescription",
-      label: needsRx ? "Verifikasi Resep" : "Resep",
-      detail: needsRx
-        ? prescription?.status === "APPROVED"
-          ? `Disetujui${prescription?.uploaded_at ? ` • diunggah ${formatDateTime(prescription.uploaded_at)}` : ""}`
-          : prescription?.status === "USED"
-            ? "Sudah dipakai untuk satu transaksi"
-          : prescription?.status === "REJECTED"
-            ? `Ditolak${prescription?.uploaded_at ? ` • diunggah ${formatDateTime(prescription.uploaded_at)}` : ""}`
-            : needsUpload
-              ? "Menunggu upload resep"
-              : "Menunggu verifikasi apoteker"
-        : "Tidak diperlukan",
-      state: needsRx ? (prescription?.status === "REJECTED" ? "error" : rxResolved ? "done" : prescription?.file_url ? "active" : "idle") : "done"
     },
     {
       key: "payment",
@@ -115,6 +91,36 @@ const getOrderPhase = (order = {}, prescription = null, payment = null) => {
       state: order.status === "COMPLETED" ? "done" : "idle"
     }
   ];
+
+  if (!showPrescriptionSteps) {
+    return steps;
+  }
+
+  const prescriptionStep = {
+    key: "prescription",
+    label: "Verifikasi Resep",
+    detail: prescriptionVerified
+      ? `Disetujui${prescription?.uploaded_at ? ` • diunggah ${formatDateTime(prescription.uploaded_at)}` : ""}`
+      : prescription?.status === "USED"
+        ? "Sudah dipakai untuk satu transaksi"
+        : prescriptionRejected
+          ? `Ditolak${prescription?.uploaded_at ? ` • diunggah ${formatDateTime(prescription.uploaded_at)}` : ""}`
+          : prescriptionUploaded
+            ? `Menunggu verifikasi apoteker${prescription?.uploaded_at ? ` • diunggah ${formatDateTime(prescription.uploaded_at)}` : ""}`
+            : "Menunggu upload resep",
+    state: prescriptionRejected ? "error" : prescriptionVerified ? "done" : prescriptionUploaded ? "active" : "idle"
+  };
+
+  const uploadStep = {
+    key: "upload_prescription",
+    label: "Upload Resep",
+    detail: prescriptionUploaded
+      ? `Resep sudah diunggah${prescription?.uploaded_at ? ` • ${formatDateTime(prescription.uploaded_at)}` : ""}`
+      : "Unggah resep dokter setelah pesanan dibuat",
+    state: prescriptionUploaded ? "done" : "active"
+  };
+
+  return [steps[0], uploadStep, prescriptionStep, ...steps.slice(1)];
 };
 
 function OrderStepper({ order, prescription, payment }) {
@@ -714,7 +720,7 @@ export function OrdersPage({ title = "Pesanan Saya", subtitle = "Lacak dan kelol
                 </div>
                 <div className="mt-5 flex flex-wrap gap-3">
                   <button className="btn-primary" type="button" onClick={() => navigate(`/pasien/orders/${order.id}`)}>Lihat Detail</button>
-                  {requiresPrescription(order) && <Link className="btn-secondary" to={`/pasien/prescriptions/upload?order_id=${order.id}`}>Upload Resep</Link>}
+                  {order.status === "WAITING_PRESCRIPTION" && <Link className="btn-secondary" to={`/pasien/prescriptions/upload?order_id=${order.id}`}>Upload Resep</Link>}
                   {order.status === "PENDING_PAYMENT" && <Link className="btn-secondary" to={`/pasien/orders/${order.id}/payment`}>Bayar</Link>}
                 </div>
               </article>
@@ -780,7 +786,7 @@ export function OrderDetail() {
     rejection_reason: order.rejection_reason
   } : null;
   const canUploadPayment = order.status === "PENDING_PAYMENT" && isOnlinePayment(payment?.method) && payment?.status === "PENDING" && !payment?.proof_uploaded_at && !payment?.proof_file_url;
-  const canUploadPrescription = requiresPrescription(order) || prescription?.status === "REJECTED";
+  const canUploadPrescription = order.status === "WAITING_PRESCRIPTION" && !prescription?.file_url;
 
   return (
     <>
@@ -840,7 +846,9 @@ export function OrderDetail() {
               <InfoRow label="Nomor Resep" value={prescription?.prescription_number || "-"} />
             </div>
             <p className="mt-4 text-sm text-muted">
-              {prescription?.status === "APPROVED"
+              {order.status === "PRESCRIPTION_REVIEW"
+                ? "Resep sudah dikirim dan sedang menunggu verifikasi apoteker."
+                : prescription?.status === "APPROVED"
                 ? "Resep sudah disetujui. Pembayaran bisa dilanjutkan."
                 : prescription?.status === "USED"
                   ? "Resep sudah dipakai untuk satu transaksi dan tidak bisa digunakan lagi."

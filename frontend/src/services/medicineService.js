@@ -11,7 +11,7 @@ export const normalizeMedicine = (item = {}) => ({
   supplier_id: item.supplier_id ?? item.supplier?.id ?? null,
   supplier_name: item.supplier_name ?? "-",
   expired_date: item.expired_date ?? item.expires_at ?? item.nearest_expired_date ?? "-",
-  description: item.description || item.generic_name || "Informasi produk akan mengikuti data dari backend Klinik Makmur Jaya.",
+  description: item.description || item.generic_name || "Informasi produk akan mengikuti data yang tersedia.",
   strength: item.strength || item.generic_name || item.sku || "-",
   status: item.status ?? ((item.current_stock ?? item.available_quantity ?? item.stock ?? 0) <= (item.minimum_stock ?? item.min_stock ?? 0) ? "kritis" : "aman"),
   image_url: assetUrl(item.image_url) || ""

@@ -48,7 +48,7 @@ export function Login() {
       Toast.success(`Login sebagai ${user.role}`);
       navigate(roleDashboards[user.role] || "/login");
     } catch (error) {
-      const message = error?.response?.data?.detail || error?.response?.data?.message || error?.message || "Login gagal. Pastikan backend berjalan dan database sudah diseed.";
+      const message = error?.response?.data?.detail || error?.response?.data?.message || error?.message || "Login gagal. Periksa email dan password Anda.";
       Toast.error(message);
     }
   };

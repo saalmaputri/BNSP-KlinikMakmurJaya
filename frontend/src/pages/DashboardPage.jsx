@@ -89,7 +89,7 @@ function AdminDashboard({ data, auditRows }) {
             <div className="flex items-center justify-between border-b border-outline/40 px-6 py-5">
               <div>
                 <h4 className="text-2xl font-extrabold text-primary">Data Transaksi Terkini</h4>
-                <p className="text-sm text-muted">Transaksi terbaru dari backend klinik.</p>
+                <p className="text-sm text-muted">Transaksi terbaru dari sistem klinik.</p>
               </div>
               <Link className="text-sm font-extrabold text-primary hover:underline" to="/admin/transactions">Lihat Semua</Link>
             </div>

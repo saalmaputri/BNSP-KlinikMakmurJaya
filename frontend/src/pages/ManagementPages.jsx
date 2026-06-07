@@ -237,9 +237,9 @@ export function MedicinesManagement() {
 
   return (
     <>
-      <PageHeader title="Manajemen Obat" subtitle="CRUD master obat terintegrasi endpoint backend /medicines." action={<div className="flex flex-wrap gap-3"><button className="btn-secondary" onClick={loadPageData} disabled={loading}><FiRefreshCw /> Refresh</button><button className="btn-secondary" onClick={exportCsv}><FiDownload /> Export CSV</button><Link className="btn-secondary" to="/admin/medicines/imports"><FiUpload /> Import CSV</Link><button className="btn-primary" onClick={openCreate}><FiPlus /> Tambah Obat</button></div>} />
+      <PageHeader title="Manajemen Obat" subtitle="CRUD master obat terintegrasi." action={<div className="flex flex-wrap gap-3"><button className="btn-secondary" onClick={loadPageData} disabled={loading}><FiRefreshCw /> Refresh</button><button className="btn-secondary" onClick={exportCsv}><FiDownload /> Export CSV</button><Link className="btn-secondary" to="/admin/medicines/imports"><FiUpload /> Import CSV</Link><button className="btn-primary" onClick={openCreate}><FiPlus /> Tambah Obat</button></div>} />
       <div className="mb-6"><SearchBar value={query} onChange={setQuery} placeholder="Cari obat..." suggestions={rows.map((item) => item.name)} onSelect={setQuery} /></div>
-      {loading && <p className="mb-4 text-sm font-bold text-muted">Memuat data backend...</p>}
+      {loading && <p className="mb-4 text-sm font-bold text-muted">Memuat data...</p>}
       <DataTable columns={columns} rows={rows} onView={viewMedicine} onEdit={openEdit} onDelete={requestDeleteMedicine} />
       <ConfirmDialog
         open={Boolean(deleteTarget)}
@@ -346,7 +346,7 @@ export function SimpleManagement({ type, title, subtitle }) {
     if (!name) return;
     const created = await simpleServices[type]?.create?.({ name });
     if (created) setRows((current) => [created, ...current]);
-    Toast.success("Data tersimpan ke backend");
+      Toast.success("Data tersimpan");
   };
 
   return (
@@ -442,7 +442,7 @@ export function SupplierManagement() {
     <>
       <PageHeader
         title="Manajemen Supplier"
-        subtitle="Kelola supplier obat sesuai master data backend."
+        subtitle="Kelola supplier obat sesuai master data."
         action={<button type="button" className="btn-primary" onClick={openCreate}><FiPlus /> Tambah Supplier</button>}
       />
       <DataTable rows={rows} columns={columns} onEdit={openEdit} onDelete={requestRemove} />
@@ -494,10 +494,13 @@ export function SupplierManagement() {
   );
 }
 
-export function TransactionsManagement({ title = "Manajemen Transaksi", subtitle = "Kelola transaksi penjualan kasir dan online.", cashierMode = false }) {
+export function TransactionsManagement({ title = "Manajemen Transaksi", subtitle = "Kelola transaksi penjualan kasir dan online.", cashierMode = false, orderTypeFilter = null }) {
   const [rows, setRows] = useState([]);
   const [cartItems, setCartItems] = useState([]);
   const [medicines, setMedicines] = useState([]);
+  const [medicineQuery, setMedicineQuery] = useState("");
+  const [transactionQuery, setTransactionQuery] = useState("");
+  const [transactionTypeFilter, setTransactionTypeFilter] = useState("ALL");
   const [selectedMedicine, setSelectedMedicine] = useState("");
   const [customerName, setCustomerName] = useState("Pelanggan Walk-in");
   const [paymentMethod, setPaymentMethod] = useState("CASH");
@@ -506,7 +509,9 @@ export function TransactionsManagement({ title = "Manajemen Transaksi", subtitle
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const loadTransactions = () => orderService.transactions().then((data) => setRows(normalizeList(data))).catch((error) => Toast.error(error?.response?.data?.message || "Gagal memuat transaksi"));
-  useEffect(() => { loadTransactions(); }, []);
+  useEffect(() => {
+    if (!cashierMode) loadTransactions();
+  }, [cashierMode]);
   useEffect(() => {
     if (!cashierMode) return;
     Promise.all([medicineService.list(), stockService.list()])
@@ -522,6 +527,58 @@ export function TransactionsManagement({ title = "Manajemen Transaksi", subtitle
         Toast.error(error?.response?.data?.detail || error?.message || "Gagal memuat stok obat kasir");
       });
   }, [cashierMode]);
+  const filteredMedicines = medicineQuery.trim()
+    ? medicines.filter((item) => {
+        const needle = medicineQuery.toLowerCase();
+        return [
+          item.name,
+          item.sku,
+          item.generic_name,
+          item.category_name,
+          item.supplier_name
+        ].some((value) => String(value || "").toLowerCase().includes(needle));
+      })
+    : medicines;
+  const filteredOrders = rows.filter((row) => {
+    const matchesType = orderTypeFilter
+      ? String(row?.order_type || "").toUpperCase() === String(orderTypeFilter).toUpperCase()
+      : transactionTypeFilter === "ALL"
+        ? true
+        : String(row?.order_type || "").toUpperCase() === transactionTypeFilter;
+    if (!matchesType) return false;
+    if (!transactionQuery.trim()) return true;
+    const needle = transactionQuery.toLowerCase();
+    return [
+      row.order_number,
+      row.customer_name_snapshot,
+      row.patient_id,
+      row.status,
+      row.order_type,
+      row.payment_method,
+      row.payment_status,
+      row.payment_number
+    ].some((value) => String(value || "").toLowerCase().includes(needle));
+  });
+  const exportTransactionsCsv = () => {
+    const header = ["Order Number", "Type", "Pelanggan", "Status", "Payment Method", "Payment Status", "Total", "Checkout At"];
+    const body = filteredOrders.map((row) => [
+      row.order_number || "-",
+      row.order_type || "-",
+      row.customer_name_snapshot || row.patient_id || "-",
+      row.status || "-",
+      row.payment_method || "-",
+      row.payment_status || "-",
+      row.total_amount ?? 0,
+      row.checkout_at ? new Date(row.checkout_at).toLocaleString("id-ID") : "-"
+    ]);
+    const csv = [header, ...body].map((line) => line.map((value) => `"${String(value ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `transaksi-${transactionTypeFilter.toLowerCase() === "all" ? "semua" : transactionTypeFilter.toLowerCase()}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
   const addCashierItem = () => {
     const medicine = medicines.find((item) => String(item.id) === String(selectedMedicine));
     if (!medicine) return;
@@ -532,6 +589,20 @@ export function TransactionsManagement({ title = "Manajemen Transaksi", subtitle
         : item);
       return [...current, { medicine_id: medicine.id, medicine, current_stock: medicine.current_stock, quantity: 1 }];
     });
+  };
+  const addCashierMedicine = (medicine) => {
+    if (!medicine?.id) return;
+    setSelectedMedicine(String(medicine.id));
+    setCartItems((current) => {
+      const existing = current.find((item) => String(item.medicine_id) === String(medicine.id));
+      if (existing) {
+        return current.map((item) => String(item.medicine_id) === String(medicine.id)
+          ? { ...item, quantity: Math.min(item.current_stock, item.quantity + 1) }
+          : item);
+      }
+      return [...current, { medicine_id: medicine.id, medicine, current_stock: medicine.current_stock, quantity: 1 }];
+    });
+    Toast.success(`${medicine.name} ditambahkan ke keranjang`);
   };
   const updateCashierQty = (medicineId, delta) => {
     setCartItems((current) => current
@@ -626,8 +697,27 @@ export function TransactionsManagement({ title = "Manajemen Transaksi", subtitle
   );
   const table = (
     <>
+      {!cashierMode && (
+        <div className="mb-6 grid gap-3 lg:grid-cols-[1fr_auto_auto]">
+          <SearchBar
+            value={transactionQuery}
+            onChange={setTransactionQuery}
+            placeholder="Cari order, pelanggan, payment, atau status..."
+            suggestions={rows.map((item) => item.order_number)}
+            onSelect={setTransactionQuery}
+          />
+          <select className="field h-12" value={transactionTypeFilter} onChange={(event) => setTransactionTypeFilter(event.target.value)}>
+            <option value="ALL">Semua Transaksi</option>
+            <option value="ONLINE">Online</option>
+            <option value="OFFLINE">Offline</option>
+          </select>
+          <button type="button" className="btn-secondary h-12" onClick={exportTransactionsCsv}>
+            <FiDownload /> Download CSV
+          </button>
+        </div>
+      )}
       <DataTable
-        rows={rows}
+        rows={filteredOrders}
         columns={[
           { key: "order_number", label: "ID" },
           { key: "customer_name_snapshot", label: "Pelanggan", render: (row) => row.customer_name_snapshot || row.patient_id || "-" },
@@ -720,11 +810,52 @@ export function TransactionsManagement({ title = "Manajemen Transaksi", subtitle
     </>
   );
   if (!cashierMode) return <><PageHeader title={title} subtitle={subtitle} />{table}</>;
+  const cashierCatalog = (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h3 className="text-xl font-extrabold text-primary">Menu Obat Kasir</h3>
+          <p className="text-sm text-muted">Tambah obat langsung ke keranjang tanpa buka detail.</p>
+        </div>
+        <span className="rounded-full bg-surface-low px-4 py-2 text-sm font-bold text-primary">{filteredMedicines.length} obat</span>
+      </div>
+      <SearchBar
+        value={medicineQuery}
+        onChange={setMedicineQuery}
+        placeholder="Cari obat, SKU, kategori, atau supplier..."
+        suggestions={medicines.map((item) => item.name)}
+        onSelect={setMedicineQuery}
+      />
+      <DataTable
+        rows={filteredMedicines}
+        columns={[
+          { key: "name", label: "Obat", render: (row) => <div className="flex items-center gap-3"><img src={row.image_url || "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=200&q=80"} alt={row.name} className="h-12 w-12 rounded-xl object-cover" /><div><p className="font-extrabold text-primary">{row.name}</p><p className="text-xs text-muted">SKU: {row.sku}</p></div></div> },
+          { key: "selling_price", label: "Harga", render: (row) => rupiah(row.selling_price) },
+          { key: "current_stock", label: "Stok", render: (row) => row.current_stock ?? 0 },
+          { key: "requires_prescription", label: "Resep", render: (row) => row.requires_prescription ? "Wajib" : "Bebas" },
+          {
+            key: "action",
+            label: "Aksi",
+            render: (row) => (
+              <button
+                type="button"
+                className="btn-secondary px-3 py-2 text-xs"
+                onClick={() => addCashierMedicine(row)}
+                disabled={Number(row.current_stock || 0) <= 0}
+              >
+                <FiPlus /> Tambah ke Keranjang
+              </button>
+            )
+          }
+        ]}
+      />
+    </div>
+  );
   return (
     <>
       <PageHeader title={title} subtitle={subtitle} />
       <div className="grid gap-6 xl:grid-cols-3">
-        <div className="xl:col-span-2">{table}</div>
+        <div className="space-y-6 xl:col-span-2">{cashierCatalog}</div>
         <aside className="glass-card sticky top-24 h-fit p-6">
           <h3 className="flex items-center gap-2 text-xl font-extrabold text-primary"><FiShoppingCart /> POS Kasir</h3>
           <div className="mt-5 space-y-3">
@@ -736,17 +867,6 @@ export function TransactionsManagement({ title = "Manajemen Transaksi", subtitle
               <option value="QRIS">QRIS</option>
               <option value="BANK_TRANSFER">Transfer Bank</option>
             </select>
-            <div className="flex gap-2">
-              <select className="field" value={selectedMedicine} onChange={(e) => setSelectedMedicine(e.target.value)}>
-                <option value="">Pilih obat</option>
-                {medicines.map((item) => (
-                  <option key={item.id} value={item.id} disabled={item.current_stock <= 0}>
-                    {item.name} (stok: {item.current_stock})
-                  </option>
-                ))}
-              </select>
-              <button className="icon-btn h-auto w-14 bg-primary text-white" onClick={addCashierItem}><FiPlus /></button>
-            </div>
           </div>
           <div className="mt-5 space-y-3">
             {cartItems.map((item) => (
@@ -758,6 +878,7 @@ export function TransactionsManagement({ title = "Manajemen Transaksi", subtitle
                     <button className="icon-btn h-8 w-8" onClick={() => updateCashierQty(item.medicine_id, -1)}><FiMinus /></button>
                     <span className="w-6 text-center font-extrabold">{item.quantity}</span>
                     <button className="icon-btn h-8 w-8" onClick={() => updateCashierQty(item.medicine_id, 1)}><FiPlus /></button>
+                    <button className="icon-btn h-8 w-8 text-danger" onClick={() => updateCashierQty(item.medicine_id, -999)}><FiTrash2 /></button>
                   </div>
                 </div>
               </div>
@@ -1054,7 +1175,7 @@ export function StockManagement({ mode = "all" }) {
       setBatchOpen(false);
       setShowManufactureDate(false);
       await loadStocks();
-      Toast.success("Batch stok tersimpan ke backend");
+      Toast.success("Batch stok tersimpan");
     } catch (error) {
       Toast.error(error?.response?.data?.detail || error?.response?.data?.message || error?.message || "Gagal menyimpan batch stok");
     }
@@ -1067,7 +1188,7 @@ export function StockManagement({ mode = "all" }) {
     });
     setAdjustOpen(false);
     await loadStocks();
-    Toast.success("Adjustment stok tersimpan ke backend");
+    Toast.success("Adjustment stok tersimpan");
   };
   const requestDiscard = (row) => {
     if (!isExpiredBatch(row)) return;
@@ -1208,7 +1329,7 @@ export function StockManagement({ mode = "all" }) {
       </ModalForm>
       <ModalForm open={adjustOpen} title="Adjustment Stok" onClose={() => setAdjustOpen(false)} footer={<><button className="btn-secondary" onClick={() => setAdjustOpen(false)}>Batal</button><button className="btn-primary" onClick={adjustStock}>Simpan Adjustment</button></>}>
         <div className="space-y-4">
-          <input className="field" placeholder="Medicine batch ID dari backend" value={adjustForm.medicine_batch_id} onChange={(e) => setAdjustForm({ ...adjustForm, medicine_batch_id: e.target.value })} />
+          <input className="field" placeholder="Medicine batch ID" value={adjustForm.medicine_batch_id} onChange={(e) => setAdjustForm({ ...adjustForm, medicine_batch_id: e.target.value })} />
           <input className="field" type="number" placeholder="Delta qty, contoh: -5 atau 20" value={adjustForm.quantity_delta} onChange={(e) => setAdjustForm({ ...adjustForm, quantity_delta: e.target.value })} />
           <textarea className="field" rows="3" placeholder="Catatan adjustment" value={adjustForm.notes} onChange={(e) => setAdjustForm({ ...adjustForm, notes: e.target.value })} />
         </div>

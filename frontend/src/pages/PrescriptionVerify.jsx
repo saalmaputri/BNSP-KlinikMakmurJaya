@@ -52,7 +52,7 @@ export default function PrescriptionVerify() {
     setBusy(true);
     try {
       await prescriptionService.approve(selected.id, { notes });
-      Toast.success("Resep disetujui dan dikirim ke backend");
+      Toast.success("Resep disetujui dan diproses oleh sistem");
       await load();
     } finally {
       setBusy(false);
@@ -65,7 +65,7 @@ export default function PrescriptionVerify() {
     setBusy(true);
     try {
       await prescriptionService.reject(selected.id, { notes });
-      Toast.warning("Resep ditolak dan dikirim ke backend");
+      Toast.warning("Resep ditolak dan dicatat oleh sistem");
       await load();
       setRejectConfirmOpen(false);
     } finally {
@@ -80,7 +80,7 @@ export default function PrescriptionVerify() {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-3xl font-extrabold text-primary">Antrean Resep</h2>
-              <p className="mt-1 text-sm font-semibold text-muted">Resep pending dari backend FastAPI.</p>
+              <p className="mt-1 text-sm font-semibold text-muted">Resep pending dari sistem.</p>
             </div>
             <span className="rounded-full bg-primary px-4 py-2 text-sm font-extrabold text-white">{items.length} baru</span>
           </div>
@@ -115,7 +115,7 @@ export default function PrescriptionVerify() {
             <div className="glass-card p-8 text-center">
               <FiClock className="mx-auto text-4xl text-primary" />
               <p className="mt-3 font-extrabold text-primary">Tidak ada antrean resep</p>
-              <p className="mt-1 text-sm text-muted">Semua resep pending dari backend sudah diproses.</p>
+              <p className="mt-1 text-sm text-muted">Semua resep pending sudah diproses.</p>
             </div>
           )}
         </div>
@@ -126,7 +126,7 @@ export default function PrescriptionVerify() {
           <div className="flex min-h-[680px] flex-col items-center justify-center p-8 text-center">
             <FiFileText className="text-5xl text-primary" />
             <h1 className="mt-4 text-2xl font-extrabold text-primary">Belum ada resep untuk diverifikasi</h1>
-            <p className="mt-2 text-muted">Data akan muncul setelah pasien upload resep ke backend.</p>
+            <p className="mt-2 text-muted">Data akan muncul setelah pasien mengirim resep.</p>
           </div>
         ) : (
           <>

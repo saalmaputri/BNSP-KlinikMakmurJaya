@@ -54,7 +54,7 @@ export default function AppRoutes() {
             <Route path="/kasir/catalog" element={<CatalogPage basePath="/kasir/products" cartPath="/kasir/transactions" allowCartActions />} />
             <Route path="/kasir/products/:id" element={<DetailObat cartPath="/kasir/transactions" catalogPath="/kasir/catalog" />} />
             <Route path="/kasir/transactions" element={<TransactionsManagement title="Transaksi Kasir" subtitle="POS kasir dengan panel keranjang transaksi." cashierMode />} />
-            <Route path="/kasir/history" element={<TransactionsManagement title="Riwayat Transaksi" subtitle="Riwayat transaksi kasir dan penjualan apotek." />} />
+            <Route path="/kasir/history" element={<TransactionsManagement title="Riwayat Transaksi" subtitle="Riwayat transaksi kasir offline." orderTypeFilter="OFFLINE" />} />
 
             <Route path="/pasien/dashboard" element={<DashboardPage roleOverride="pasien" />} />
             <Route path="/pasien/catalog" element={<CatalogPage />} />

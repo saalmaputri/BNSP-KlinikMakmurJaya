@@ -22,7 +22,7 @@ export function ErrorLogDashboard() {
     await load();
     Toast.success("Error log ditandai resolved");
   };
-  return <><PageHeader title="Error Log Dashboard" subtitle="Pantau error backend, level, dan status resolve." /><DataTable rows={rows} columns={[{ key: "path", label: "Path" }, { key: "message", label: "Message" }, { key: "level", label: "Level", type: "badge" }, { key: "status", label: "Status", type: "badge" }, { key: "created_at", label: "Waktu" }]} onEdit={resolveLog} editLabel="Resolve" editTitle="Tandai resolved" /></>;
+  return <><PageHeader title="Error Log Dashboard" subtitle="Pantau error, level, dan status resolve." /><DataTable rows={rows} columns={[{ key: "path", label: "Path" }, { key: "message", label: "Message" }, { key: "level", label: "Level", type: "badge" }, { key: "status", label: "Status", type: "badge" }, { key: "created_at", label: "Waktu" }]} onEdit={resolveLog} editLabel="Resolve" editTitle="Tandai resolved" /></>;
 }
 
 export function AuditLogPage() {
@@ -66,12 +66,12 @@ export function AuditLogPage() {
     <>
       <PageHeader
         title="Audit Log"
-        subtitle="Jejak aktivitas pengguna, perubahan entity, IP, dan request backend."
+        subtitle="Jejak aktivitas pengguna, perubahan data, IP, dan request."
         action={<button className="btn-secondary" onClick={exportCsv}><FiDownload /> Export CSV</button>}
       />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <AuditSummary icon={FiActivity} label="Total Aktivitas" value={rows.length} note="100 log terbaru dari backend" />
+        <AuditSummary icon={FiActivity} label="Total Aktivitas" value={rows.length} note="100 log terbaru" />
         <AuditSummary icon={FiShield} label="Role Terlibat" value={roles.length} note={roles.slice(0, 3).join(", ") || "Belum ada role"} />
         <AuditSummary icon={FiDatabase} label="Entity Diubah" value={entities.length} note={entities.slice(0, 3).join(", ") || "Belum ada entity"} />
         <AuditSummary icon={FiGlobe} label="IP Unik" value={uniqueValues(rows.map((row) => row.ip)).length} note="Sumber request terekam" />
@@ -275,7 +275,7 @@ export function SalesReport() {
     try {
       const currentRange = getRange(periodPreset);
       await reportService.generatePdf(currentRange);
-      Toast.success("Job export PDF dibuat di backend");
+      Toast.success("Job export PDF dibuat");
     } catch (error) {
       Toast.error(error?.response?.data?.message || error?.message || "Gagal membuat job PDF");
     }
@@ -431,7 +431,7 @@ export function SalesReport() {
           <div className="flex items-center justify-between border-b border-outline/40 px-6 py-5">
             <div>
               <h3 className="text-2xl font-extrabold text-primary">Ringkasan Analitik</h3>
-              <p className="text-sm text-muted">Metrik penting dari backend laporan.</p>
+              <p className="text-sm text-muted">Metrik penting dari laporan.</p>
             </div>
           </div>
           <div className="grid gap-3 p-6">
@@ -593,7 +593,7 @@ export function ImportPage() {
           />
         </label>
         <p className="mt-2 text-xs text-muted">
-          Upload file langsung dari komputer. Sistem akan membuat job import dan memproses data di backend.
+          Upload file langsung dari komputer. Sistem akan membuat job import dan memproses data secara otomatis.
         </p>
         <button type="button" className="btn-primary mt-6" onClick={submit} disabled={!file}><FiUpload /> Import Data</button>
         <div className="mt-6 grid gap-3 md:grid-cols-[1fr_auto]">
@@ -618,7 +618,7 @@ export function MonitoringPage() {
   }, []);
   return (
     <>
-      <PageHeader title="Monitoring Backend" subtitle="Status health, resource server, database, dan Redis dari FastAPI." />
+      <PageHeader title="Monitoring Sistem" subtitle="Status kesehatan, resource server, database, dan Redis." />
       <div className="grid gap-4 md:grid-cols-2">
         {items.map((item) => (
           <div key={item.label} className="glass-card p-5">
@@ -637,20 +637,20 @@ export function MonitoringPage() {
 export function HelpPage({ type }) {
   const patientGuide = [
     {
-      title: "1. Login ke akun pasien",
-      description: "Masuk menggunakan email dan password yang terdaftar, lalu buka dashboard pasien."
+      title: "1. Masuk ke akun pasien",
+      description: "Login menggunakan email dan password yang terdaftar, lalu buka dashboard pasien."
     },
     {
       title: "2. Cari obat di katalog",
       description: "Gunakan katalog untuk melihat obat, detail produk, stok aktif, dan detail batch jika tersedia."
     },
     {
-      title: "3. Upload resep untuk obat wajib resep",
+      title: "3. Ajukan resep jika wajib resep",
       description: "Jika obat membutuhkan resep dokter, upload foto resep terlebih dahulu lalu tunggu verifikasi apoteker atau admin."
     },
     {
-      title: "4. Checkout pesanan",
-      description: "Setelah resep disetujui, lanjutkan checkout dengan alur ambil di klinik."
+      title: "4. Lanjutkan checkout",
+      description: "Setelah resep disetujui, lanjutkan checkout dengan alur ambil di klinik dan pembayaran manual."
     },
     {
       title: "5. Upload bukti pembayaran",
@@ -664,11 +664,11 @@ export function HelpPage({ type }) {
 
   const faqItems = [
     {
-      q: "Bagaimana cara membeli obat secara online?",
-      a: "Buka katalog pasien, pilih obat, baca detail produk, upload resep jika wajib resep, lalu checkout dan lanjutkan alur pembayaran manual."
+      q: "Bagaimana cara memesan obat dari katalog?",
+      a: "Buka katalog pasien, pilih obat, baca detail produk, lalu lanjutkan sesuai alurnya. Jika obat wajib resep, upload resep dulu sebelum checkout."
     },
     {
-      q: "Apa yang harus dilakukan jika obat membutuhkan resep dokter?",
+      q: "Apa yang harus saya lakukan jika obat membutuhkan resep dokter?",
       a: "Upload foto resep melalui menu Ajukan Resep atau dari detail pesanan, lalu tunggu verifikasi apoteker atau admin sebelum checkout dilanjutkan."
     },
     {
@@ -676,8 +676,8 @@ export function HelpPage({ type }) {
       a: "Biasanya karena resep belum diverifikasi atau keranjang masih kosong. Pastikan resep berstatus APPROVED."
     },
     {
-      q: "Berapa kali satu resep bisa dipakai?",
-      a: "Satu resep yang sudah disetujui hanya bisa dipakai untuk satu transaksi."
+      q: "Berapa kali saya harus upload resep untuk pembelian berikutnya?",
+      a: "Setiap pengajuan resep dibuat sebagai aktivitas pesanan baru. Untuk pembelian berikutnya, upload resep baru kembali."
     },
     {
       q: "Bagaimana cara upload bukti pembayaran?",
@@ -692,7 +692,7 @@ export function HelpPage({ type }) {
       a: "Tidak. Alur sistem ini pickup-only, jadi pesanan diambil di klinik setelah statusnya siap diambil."
     },
     {
-      q: "Bagaimana cara melihat riwayat pesanan?",
+      q: "Bagaimana cara melihat riwayat pesanan saya?",
       a: "Buka menu Pesanan Saya atau Riwayat Pembelian di dashboard pasien."
     },
     {
@@ -730,9 +730,9 @@ export function HelpPage({ type }) {
 
   const title = type === "guide" ? "User Guide" : type === "faq" ? "Bantuan Pasien" : type === "system" ? "Sistem" : "Troubleshooting";
   const systemLinks = [
-    { label: "Audit Log", description: "Aktivitas user, entity, IP, dan request backend.", to: "/admin/system/audit" },
-    { label: "Error Log", description: "Pantau error backend dan status penyelesaiannya.", to: "/admin/system/errors" },
-    { label: "Monitoring", description: "Health check, database, Redis, dan resource backend.", to: "/admin/system/monitoring" }
+    { label: "Audit Log", description: "Aktivitas user, perubahan data, IP, dan request.", to: "/admin/system/audit" },
+    { label: "Error Log", description: "Pantau error dan status penyelesaiannya.", to: "/admin/system/errors" },
+    { label: "Monitoring", description: "Health check dan resource sistem.", to: "/admin/system/monitoring" }
   ];
   return (
     <>
@@ -811,7 +811,7 @@ export function HelpPage({ type }) {
               ? ["Login sesuai role", "Gunakan menu sidebar role-based", "CRUD data dari halaman manajemen", "Upload resep dan bukti pembayaran dari form upload"]
               : type === "system"
                 ? ["Audit log aktivitas pengguna", "Error log dan status resolve", "Konfigurasi CORS dan koneksi API", "Panduan operasional sistem"]
-                : ["Cek VITE_API_BASE_URL di .env", "Pastikan backend FastAPI berjalan di port 8000", "Cek console browser untuk error API"]
+                : ["Cek VITE_API_BASE_URL di .env", "Pastikan API berjalan di port yang benar", "Cek console browser untuk error API"]
             ).map((item, index) => (
               <div key={item} className="flex gap-4 rounded-2xl bg-surface-low p-4">
                 <span className="grid h-8 w-8 place-items-center rounded-full bg-primary text-sm font-bold text-white">{index + 1}</span>
