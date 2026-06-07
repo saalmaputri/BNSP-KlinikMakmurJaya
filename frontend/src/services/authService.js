@@ -29,7 +29,7 @@ export const authService = {
     password: payload.password,
     phone: payload.phone,
     date_of_birth: payload.date_of_birth || payload.birth_date || null,
-    gender: payload.gender || null,
+    gender: normalizeGender(payload.gender),
     address: payload.address
   })),
   verifyEmail: (payload) => dataOf(() => api.post("/auth/verify-email", { token: payload.token || payload.code })),
@@ -40,3 +40,11 @@ export const authService = {
     authStorage.clear();
   }
 };
+
+function normalizeGender(value) {
+  const gender = String(value || "").trim().toLowerCase();
+  if (["male", "laki-laki", "laki", "pria"].includes(gender)) return "male";
+  if (["female", "perempuan", "wanita"].includes(gender)) return "female";
+  if (["other", "lainnya", "lain", "none"].includes(gender)) return "other";
+  return null;
+}

@@ -35,6 +35,20 @@ class OrderRepository(BaseRepository[Order]):
             ).unique().scalars().all()
         )
 
+    def get_latest_active_by_patient(self, patient_id: UUID, statuses: list[str] | None = None) -> Order | None:
+        active_statuses = statuses or ["WAITING_PRESCRIPTION", "PRESCRIPTION_REVIEW"]
+        return self.db.execute(
+            select(Order)
+            .options(joinedload(Order.items), joinedload(Order.payments))
+            .where(
+                Order.patient_id == patient_id,
+                Order.deleted_at.is_(None),
+                Order.status.in_(active_statuses),
+                Order.order_type == "ONLINE",
+            )
+            .order_by(Order.created_at.desc())
+        ).unique().scalar_one_or_none()
+
     def list_latest(self, limit: int = 10, order_type: str | None = None) -> list[Order]:
         stmt = select(Order).order_by(Order.created_at.desc()).limit(limit)
         if order_type:

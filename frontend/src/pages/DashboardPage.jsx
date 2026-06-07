@@ -19,6 +19,7 @@ import {
 import { Link, useParams } from "react-router-dom";
 import ChartCard from "../components/ChartCard";
 import DataTable from "../components/DataTable";
+import ProductCard from "../components/ProductCard";
 import StatCard from "../components/StatCard";
 import EmptyState from "../components/EmptyState";
 import { Toast } from "../components/Toast";
@@ -78,7 +79,12 @@ function AdminDashboard({ data, auditRows }) {
       </div>
       <div className="mt-6 grid gap-6 xl:grid-cols-12">
         <div className="space-y-6 xl:col-span-9">
-          <ChartCard title="Tren Penjualan Mingguan" subtitle="Performa penjualan dan transaksi klinik" data={data?.chart || []} />
+          <ChartCard
+            title="Tren Penjualan Mingguan"
+            subtitle="Performa penjualan dan transaksi klinik"
+            data={data?.chart || []}
+            yAxisFormatter={formatWeeklyYAxis}
+          />
           <section className="glass-card overflow-hidden">
             <div className="flex items-center justify-between border-b border-outline/40 px-6 py-5">
               <div>
@@ -98,11 +104,24 @@ function AdminDashboard({ data, auditRows }) {
   );
 }
 
+function formatWeeklyYAxis(value) {
+  const amount = Number(value || 0);
+  if (amount >= 1000000) {
+    const millions = amount / 1000000;
+    return `${Number.isInteger(millions) ? millions.toFixed(0) : millions.toFixed(1)} jt`;
+  }
+  if (amount > 0) {
+    const hundreds = Math.max(100, Math.ceil(amount / 100000) * 100);
+    return `${hundreds} rb`;
+  }
+  return "0";
+}
+
 function AuditRail({ rows }) {
   return (
     <section className="glass-card h-full p-6">
       <div className="mb-6 flex items-center justify-between">
-        <h3 className="text-2xl font-extrabold text-primary">Audit Log</h3>
+        <h3 className="text-xl font-extrabold text-primary">Audit Log</h3>
         <span className="grid h-10 w-10 place-items-center rounded-2xl bg-primary-soft text-primary">
           <FiClock />
         </span>
@@ -127,9 +146,9 @@ function AuditRailItem({ row }) {
         <Icon className={tone.icon} size={16} />
       </div>
       <div>
-        <p className="text-lg font-extrabold text-primary">{row.action}</p>
+        <p className="text-base font-extrabold text-primary">{row.action}</p>
         <p className="text-sm text-muted">{row.actor} {row.entity ? `• ${row.entity}` : ""}</p>
-        <p className="mt-1 text-sm font-semibold text-secondary">{row.when}</p>
+        <p className="mt-1 text-xs font-semibold text-secondary">{row.when}</p>
       </div>
     </div>
   );
@@ -336,20 +355,13 @@ function PatientDashboard({ data }) {
           <h2 className="text-3xl font-extrabold text-primary">Menu Pasien</h2>
           <p className="text-muted">Akses cepat ke fitur yang tersedia untuk pasien.</p>
         </div>
-        <div className="flex gap-6 overflow-x-auto pb-4">
+        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
           {products.map((product) => (
-            <div key={product.id} className="min-w-[280px] overflow-hidden rounded-[2rem] bg-white shadow-soft">
-              <img className="h-40 w-full object-cover" src={product.image_url} alt={product.name} />
-              <div className="p-6">
-                <span className="rounded-full bg-secondary-soft px-3 py-1 text-xs font-bold text-secondary">{product.category_name || "Wellness"}</span>
-                <h3 className="mt-3 font-extrabold text-primary">{product.name}</h3>
-                <p className="text-sm text-muted">{product.sku || "Healthcare product"}</p>
-                <div className="mt-5 flex items-center justify-between">
-                  <span className="font-extrabold text-primary">{rupiah(product.selling_price)}</span>
-                  <Link className="btn-secondary px-4 py-2 text-xs" to={`/pasien/products/${product.id}`}>Detail</Link>
-                </div>
-              </div>
-            </div>
+            <ProductCard
+              key={product.id}
+              product={product}
+              detailPath={`/pasien/products/${product.id}`}
+            />
           ))}
           {!products.length && <p className="text-sm text-muted">Belum ada produk aktif dari database.</p>}
         </div>

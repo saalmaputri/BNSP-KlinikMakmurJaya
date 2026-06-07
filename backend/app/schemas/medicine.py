@@ -3,6 +3,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
+from pydantic import model_validator
 
 from app.schemas.common import ORMModel
 
@@ -133,6 +134,12 @@ class BatchCreate(BaseModel):
     received_date: date
     initial_quantity: int = Field(gt=0)
     unit_cost: Decimal | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def validate_batch_dates(self):
+        if self.expired_date < self.received_date:
+            raise ValueError("Tanggal kadaluarsa tidak boleh lebih awal dari tanggal masuk gudang")
+        return self
 
 
 class StockAdjustmentRequest(BaseModel):

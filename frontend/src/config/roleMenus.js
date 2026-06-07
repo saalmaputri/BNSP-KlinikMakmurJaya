@@ -46,7 +46,6 @@ export const roleMenus = {
   ],
   kasir: [
     { label: "Dashboard", path: "/kasir/dashboard", icon: FiHome, design: "dashboard_kasir_desktop" },
-    { label: "Katalog Obat", path: "/kasir/catalog", icon: FiShoppingBag, design: "katalog_obat_modern_desktop" },
     { label: "Transaksi Kasir", path: "/kasir/transactions", icon: FiClipboard, design: "keranjang_belanja_kasir_desktop" },
     { label: "Riwayat Transaksi", path: "/kasir/history", icon: FiActivity, design: "riwayat_transaksi_desktop" }
   ],

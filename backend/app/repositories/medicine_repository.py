@@ -225,7 +225,7 @@ class StockRepository(BaseRepository[MedicineBatch]):
             item["batch_stock"] = item["available_quantity"]
             item["current_stock"] = item["batch_stock"]
             item["days_remaining"] = (item["expired_date"] - today).days
-            if item["days_remaining"] < 0:
+            if item["days_remaining"] <= 0:
                 item["status"] = "expired"
             elif item["days_remaining"] <= 30:
                 item["status"] = "menipis"

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { FiCheckCircle, FiClock, FiDownload, FiEye, FiFileText, FiSearch, FiXCircle } from "react-icons/fi";
 import StatusBadge from "../components/StatusBadge";
+import ConfirmDialog from "../components/ConfirmDialog";
 import { Toast } from "../components/Toast";
 import { prescriptionService } from "../services/prescriptionService";
 import { normalizeList } from "../utils/storage";
@@ -16,6 +17,7 @@ export default function PrescriptionVerify() {
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [rejectConfirmOpen, setRejectConfirmOpen] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -65,6 +67,7 @@ export default function PrescriptionVerify() {
       await prescriptionService.reject(selected.id, { notes });
       Toast.warning("Resep ditolak dan dikirim ke backend");
       await load();
+      setRejectConfirmOpen(false);
     } finally {
       setBusy(false);
     }
@@ -174,7 +177,7 @@ export default function PrescriptionVerify() {
                 </div>
 
                 <div className="grid gap-4 border-t border-outline/60 pt-6 md:grid-cols-2">
-                  <button type="button" className="btn-secondary h-14 border-danger text-danger" disabled={busy} onClick={reject}><FiXCircle /> Reject</button>
+                  <button type="button" className="btn-secondary h-14 border-danger text-danger" disabled={busy} onClick={() => setRejectConfirmOpen(true)}><FiXCircle /> Reject</button>
                   <button type="button" className="btn-primary h-14" disabled={busy} onClick={approve}><FiCheckCircle /> Approve</button>
                 </div>
               </div>
@@ -182,6 +185,13 @@ export default function PrescriptionVerify() {
           </>
         )}
       </section>
+      <ConfirmDialog
+        open={rejectConfirmOpen}
+        title="Tolak Resep"
+        message={selected ? `Tolak resep ${selected.prescription_number || selected.id}? Pastikan catatan penolakan sudah diisi.` : "Tolak resep ini?"}
+        onCancel={() => setRejectConfirmOpen(false)}
+        onConfirm={reject}
+      />
     </div>
   );
 }

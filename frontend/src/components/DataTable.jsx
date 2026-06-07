@@ -3,9 +3,23 @@ import EmptyState from "./EmptyState";
 import Pagination from "./Pagination";
 import { FiEdit2, FiEye, FiTrash2 } from "react-icons/fi";
 
-export default function DataTable({ columns = [], rows = [], onView, onEdit, onDelete, page, totalPages, onPageChange }) {
+export default function DataTable({
+  columns = [],
+  rows = [],
+  onView,
+  onEdit,
+  onDelete,
+  renderActions,
+  editLabel = "Edit",
+  editTitle = "Edit",
+  deleteLabel = "Hapus",
+  deleteTitle = "Hapus",
+  page,
+  totalPages,
+  onPageChange
+}) {
   const safeRows = Array.isArray(rows) ? rows : [];
-  const hasActions = Boolean(onView || onEdit || onDelete);
+  const hasActions = Boolean(onView || onEdit || onDelete || renderActions);
   if (!safeRows.length) return <EmptyState title="Data belum tersedia" description="Coba ubah filter atau tambah data baru." />;
 
   return (
@@ -30,19 +44,20 @@ export default function DataTable({ columns = [], rows = [], onView, onEdit, onD
                 ))}
                 {hasActions && <td className="px-5 py-4">
                   <div className="flex flex-wrap justify-end gap-2">
+                    {renderActions && renderActions(row)}
                     {onView && (
                       <button className="btn-secondary px-3 py-2 text-xs" title="Detail" onClick={() => onView(row)}>
                         <FiEye /> Detail
                       </button>
                     )}
                     {onEdit && (
-                      <button className="btn-secondary px-3 py-2 text-xs" title="Edit" onClick={() => onEdit(row)}>
-                        <FiEdit2 /> Edit
+                      <button className="btn-secondary px-3 py-2 text-xs" title={editTitle} onClick={() => onEdit(row)}>
+                        <FiEdit2 /> {editLabel}
                       </button>
                     )}
                     {onDelete && (
-                      <button className="inline-flex items-center justify-center gap-2 rounded-full border border-danger/30 bg-danger-soft px-3 py-2 text-xs font-bold text-danger transition hover:bg-danger hover:text-white" title="Hapus" onClick={() => onDelete(row)}>
-                        <FiTrash2 /> Hapus
+                      <button className="inline-flex items-center justify-center gap-2 rounded-full border border-danger/30 bg-danger-soft px-3 py-2 text-xs font-bold text-danger transition hover:bg-danger hover:text-white" title={deleteTitle} onClick={() => onDelete(row)}>
+                        <FiTrash2 /> {deleteLabel}
                       </button>
                     )}
                   </div>

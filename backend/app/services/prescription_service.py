@@ -18,8 +18,6 @@ class PrescriptionService:
         self.notifications = NotificationService(db)
 
     def request(self, patient_id: UUID) -> Order:
-        if self.repo.has_active_by_patient(patient_id):
-            raise AppException("Masih ada resep aktif yang belum selesai diproses", "PRESCRIPTION_ALREADY_ACTIVE")
         count = self.order_repo.db.query(Order).count() + 1
         order = Order(
             order_number=f"RX-{count:06d}",

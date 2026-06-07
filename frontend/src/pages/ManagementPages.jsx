@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { FiCheckCircle, FiDownload, FiMinus, FiPackage, FiPlus, FiRefreshCw, FiShoppingCart, FiUpload } from "react-icons/fi";
+import { FiCheckCircle, FiDownload, FiMinus, FiPackage, FiPlus, FiRefreshCw, FiShoppingCart, FiTrash2, FiUpload } from "react-icons/fi";
 import DataTable from "../components/DataTable";
+import ConfirmDialog from "../components/ConfirmDialog";
 import ModalForm from "../components/ModalForm";
 import SearchBar from "../components/SearchBar";
 import UploadPreview from "../components/UploadPreview";
@@ -24,6 +25,13 @@ const simpleServices = {
   customers: customerService
 };
 
+const toMoneyNumber = (value) => Number(String(value ?? "").replace(/[^\d]/g, "")) || 0;
+const formatMoneyInput = (value) => {
+  const digits = String(value ?? "").replace(/[^\d]/g, "");
+  if (!digits) return "";
+  return new Intl.NumberFormat("id-ID").format(Number(digits));
+};
+
 export function MedicinesManagement() {
   const navigate = useNavigate();
   const dosageForms = ["Tablet", "Kaplet", "Kapsul", "Sirup", "Suspensi", "Drops", "Salep", "Krim", "Gel", "Injeksi", "Suppositoria", "Inhaler", "Serbuk"];
@@ -34,6 +42,7 @@ export function MedicinesManagement() {
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const emptyForm = {
     id: "",
     sku: "",
@@ -63,7 +72,7 @@ export function MedicinesManagement() {
     form.strength.trim() &&
     form.unit.trim() &&
     form.selling_price !== "" &&
-    Number(form.selling_price) > 0 &&
+    toMoneyNumber(form.selling_price) > 0 &&
     form.minimum_stock !== "" &&
     Number(form.minimum_stock) >= 0 &&
     (form.image || form.image_url)
@@ -128,7 +137,7 @@ export function MedicinesManagement() {
       dosage_form: row.dosage_form || "",
       strength: row.strength || "",
       unit: row.unit || "pcs",
-      selling_price: row.selling_price ?? "",
+      selling_price: formatMoneyInput(row.selling_price ?? ""),
       requires_prescription: Boolean(row.requires_prescription),
       minimum_stock: row.minimum_stock ?? 10,
       is_active: row.is_active ?? true,
@@ -152,7 +161,7 @@ export function MedicinesManagement() {
         dosage_form: form.dosage_form,
         strength: form.strength.trim(),
         unit: form.unit.trim(),
-        selling_price: Number(form.selling_price),
+        selling_price: toMoneyNumber(form.selling_price),
         requires_prescription: Boolean(form.requires_prescription),
         minimum_stock: Number(form.minimum_stock),
         is_active: Boolean(form.is_active),
@@ -170,12 +179,17 @@ export function MedicinesManagement() {
     }
   };
 
-  const deleteMedicine = async (row) => {
-    if (!window.confirm(`Nonaktifkan obat ${row.name}?`)) return;
+  const requestDeleteMedicine = (row) => {
+    setDeleteTarget(row);
+  };
+
+  const confirmDeleteMedicine = async () => {
+    if (!deleteTarget?.id) return;
     try {
-      await medicineService.remove(row.id);
+      await medicineService.remove(deleteTarget.id);
       await loadMedicines(query);
       Toast.success("Obat dinonaktifkan");
+      setDeleteTarget(null);
     } catch (error) {
       Toast.error(error?.response?.data?.detail || error?.response?.data?.message || "Gagal menonaktifkan obat");
     }
@@ -226,7 +240,14 @@ export function MedicinesManagement() {
       <PageHeader title="Manajemen Obat" subtitle="CRUD master obat terintegrasi endpoint backend /medicines." action={<div className="flex flex-wrap gap-3"><button className="btn-secondary" onClick={loadPageData} disabled={loading}><FiRefreshCw /> Refresh</button><button className="btn-secondary" onClick={exportCsv}><FiDownload /> Export CSV</button><Link className="btn-secondary" to="/admin/medicines/imports"><FiUpload /> Import CSV</Link><button className="btn-primary" onClick={openCreate}><FiPlus /> Tambah Obat</button></div>} />
       <div className="mb-6"><SearchBar value={query} onChange={setQuery} placeholder="Cari obat..." suggestions={rows.map((item) => item.name)} onSelect={setQuery} /></div>
       {loading && <p className="mb-4 text-sm font-bold text-muted">Memuat data backend...</p>}
-      <DataTable columns={columns} rows={rows} onView={viewMedicine} onEdit={openEdit} onDelete={deleteMedicine} />
+      <DataTable columns={columns} rows={rows} onView={viewMedicine} onEdit={openEdit} onDelete={requestDeleteMedicine} />
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="Nonaktifkan Obat"
+        message={deleteTarget ? `Nonaktifkan obat ${deleteTarget.name}? Obat tidak akan muncul lagi di katalog aktif.` : "Nonaktifkan obat ini?"}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={confirmDeleteMedicine}
+      />
       <ModalForm open={open} title={form.id ? "Edit Obat" : "Tambah Obat Baru"} onClose={() => setOpen(false)} footer={<><button className="btn-secondary" onClick={() => setOpen(false)} disabled={saving}>Batal</button><button className="btn-primary" onClick={saveMedicine} disabled={saving || !requiredFieldsComplete}>{saving ? "Menyimpan..." : "Simpan Obat"}</button></>}>
         <div className="space-y-5">
           <div className="grid gap-4 md:grid-cols-2">
@@ -273,7 +294,14 @@ export function MedicinesManagement() {
               <input className="field" placeholder="Contoh: strip" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} required />
             </RequiredField>
             <RequiredField label="Harga jual">
-              <input className="field" placeholder="Harga jual" type="number" min="1" value={form.selling_price} onChange={(e) => setForm({ ...form, selling_price: e.target.value })} required />
+              <input
+                className="field"
+                placeholder="Contoh: 25.000"
+                inputMode="numeric"
+                value={form.selling_price}
+                onChange={(e) => setForm({ ...form, selling_price: formatMoneyInput(e.target.value) })}
+                required
+              />
             </RequiredField>
             <RequiredField label="Minimum stok">
               <input className="field" placeholder="Minimum stok" type="number" min="0" value={form.minimum_stock} onChange={(e) => setForm({ ...form, minimum_stock: e.target.value })} required />
@@ -333,6 +361,7 @@ export function SupplierManagement() {
   const [rows, setRows] = useState([]);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [form, setForm] = useState({ id: "", name: "", contact_person: "", phone: "", email: "", address: "", tax_number: "", is_active: true });
 
   const load = () => supplierService.list().then((data) => setRows(normalizeList(data))).catch((error) => Toast.error(error?.response?.data?.message || "Gagal memuat supplier"));
@@ -385,12 +414,17 @@ export function SupplierManagement() {
     }
   };
 
-  const remove = async (row) => {
-    if (!window.confirm(`Nonaktifkan supplier ${row.name}?`)) return;
+  const requestRemove = (row) => {
+    setDeleteTarget(row);
+  };
+
+  const confirmRemove = async () => {
+    if (!deleteTarget?.id) return;
     try {
-      await supplierService.remove(row.id);
+      await supplierService.remove(deleteTarget.id);
       await load();
       Toast.success("Supplier dinonaktifkan");
+      setDeleteTarget(null);
     } catch (error) {
       Toast.error(error?.response?.data?.detail || error?.response?.data?.message || error?.message || "Gagal menonaktifkan supplier");
     }
@@ -411,7 +445,14 @@ export function SupplierManagement() {
         subtitle="Kelola supplier obat sesuai master data backend."
         action={<button type="button" className="btn-primary" onClick={openCreate}><FiPlus /> Tambah Supplier</button>}
       />
-      <DataTable rows={rows} columns={columns} onEdit={openEdit} onDelete={remove} />
+      <DataTable rows={rows} columns={columns} onEdit={openEdit} onDelete={requestRemove} />
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="Nonaktifkan Supplier"
+        message={deleteTarget ? `Nonaktifkan supplier ${deleteTarget.name}? Supplier tidak akan dipakai untuk data baru.` : "Nonaktifkan supplier ini?"}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={confirmRemove}
+      />
       <ModalForm
         open={open}
         title={form.id ? "Edit Supplier" : "Tambah Supplier"}
@@ -563,6 +604,26 @@ export function TransactionsManagement({ title = "Manajemen Transaksi", subtitle
     win.document.close();
     win.print();
   };
+  const renderOrderWorkflowActions = (row) => (
+    <div className="flex flex-wrap gap-2">
+      {row?.status === "PAID" && (
+        <button className="btn-secondary px-3 py-2 text-xs" type="button" onClick={() => updateOrderStatus(row, "PROCESSING")}>
+          <FiPackage /> Packaging
+        </button>
+      )}
+      {row?.status === "PROCESSING" && (
+        <button className="btn-secondary px-3 py-2 text-xs" type="button" onClick={() => updateOrderStatus(row, "READY_FOR_PICKUP")}>
+          <FiCheckCircle /> Siap Diambil
+        </button>
+      )}
+      {row?.status === "READY_FOR_PICKUP" && (
+        <button className="btn-secondary px-3 py-2 text-xs" type="button" onClick={() => updateOrderStatus(row, "COMPLETED")}>
+          <FiCheckCircle /> Selesai
+        </button>
+      )}
+      {!["PAID", "PROCESSING", "READY_FOR_PICKUP"].includes(row?.status) && <span className="text-xs text-muted">-</span>}
+    </div>
+  );
   const table = (
     <>
       <DataTable
@@ -575,26 +636,7 @@ export function TransactionsManagement({ title = "Manajemen Transaksi", subtitle
           {
             key: "workflow",
             label: "Alur",
-            render: (row) => (
-              <div className="flex flex-wrap gap-2">
-                {row.status === "PENDING_PAYMENT" && (
-                  <button className="btn-secondary px-3 py-2 text-xs" type="button" onClick={() => updateOrderStatus(row, "PROCESSING")}>
-                    <FiPackage /> Packaging
-                  </button>
-                )}
-                {row.status === "PROCESSING" && (
-                  <button className="btn-secondary px-3 py-2 text-xs" type="button" onClick={() => updateOrderStatus(row, "READY_FOR_PICKUP")}>
-                    <FiCheckCircle /> Siap Diambil
-                  </button>
-                )}
-                {row.status === "READY_FOR_PICKUP" && (
-                  <button className="btn-secondary px-3 py-2 text-xs" type="button" onClick={() => updateOrderStatus(row, "COMPLETED")}>
-                    <FiCheckCircle /> Selesai
-                  </button>
-                )}
-                {!["PENDING_PAYMENT", "PROCESSING", "READY_FOR_PICKUP"].includes(row.status) && <span className="text-xs text-muted">-</span>}
-              </div>
-            )
+            render: (row) => renderOrderWorkflowActions(row)
           }
         ]}
         onView={openTransactionDetail}
@@ -636,6 +678,12 @@ export function TransactionsManagement({ title = "Manajemen Transaksi", subtitle
               <InfoRow label="Metode Pembayaran" value={selectedTransaction.payment_method || "-"} />
               <InfoRow label="Status Pembayaran" value={selectedTransaction.payment_status || "-"} />
               <InfoRow label="Total" value={rupiah(selectedTransaction.total_amount)} />
+            </div>
+            <div className="rounded-2xl border border-outline/60 bg-surface-low p-4">
+              <p className="text-sm font-bold text-primary">Aksi Status</p>
+              <div className="mt-3">
+                {renderOrderWorkflowActions(selectedTransaction)}
+              </div>
             </div>
             <div className="rounded-2xl border border-outline/60 bg-surface-low p-4">
               <p className="text-sm font-bold text-primary">Item Transaksi</p>
@@ -731,6 +779,7 @@ export function PaymentVerificationManagement() {
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [rejectConfirmOpen, setRejectConfirmOpen] = useState(false);
   const [selected, setSelected] = useState(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [notes, setNotes] = useState("");
@@ -761,6 +810,7 @@ export function PaymentVerificationManagement() {
     setSelected(null);
     setNotes("");
     setPreviewOpen(false);
+    setRejectConfirmOpen(false);
   };
 
   const openPreview = () => {
@@ -813,7 +863,7 @@ export function PaymentVerificationManagement() {
         footer={
           <>
             <button type="button" className="btn-secondary" onClick={closeDetail}>Batal</button>
-            <button type="button" className="btn-secondary" onClick={() => verifyPayment("REJECTED")} disabled={saving}>Tolak</button>
+            <button type="button" className="btn-secondary" onClick={() => setRejectConfirmOpen(true)} disabled={saving}>Tolak</button>
             <button type="button" className="btn-primary" onClick={() => verifyPayment("VERIFIED")} disabled={saving}>Setujui</button>
           </>
         }
@@ -856,6 +906,16 @@ export function PaymentVerificationManagement() {
           </div>
         )}
       </ModalForm>
+      <ConfirmDialog
+        open={rejectConfirmOpen}
+        title="Tolak Pembayaran"
+        message={selected ? `Tolak bukti pembayaran ${selected.payment_number || "-"}? Pastikan alasan penolakan sudah diisi.` : "Tolak bukti pembayaran ini?"}
+        onCancel={() => setRejectConfirmOpen(false)}
+        onConfirm={async () => {
+          setRejectConfirmOpen(false);
+          await verifyPayment("REJECTED");
+        }}
+      />
       <ModalForm
         open={previewOpen}
         title={selected ? `Preview Bukti ${selected.payment_number}` : "Preview Bukti Pembayaran"}
@@ -958,6 +1018,8 @@ export function StockManagement({ mode = "all" }) {
   const [batchOpen, setBatchOpen] = useState(false);
   const [showManufactureDate, setShowManufactureDate] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
+  const [discardTarget, setDiscardTarget] = useState(null);
+  const [discarding, setDiscarding] = useState(false);
   const [batchForm, setBatchForm] = useState({ medicine_id: "", supplier_id: "", batch_number: "", manufacture_date: "", expired_date: "", received_date: new Date().toISOString().slice(0, 10), initial_quantity: "", unit_cost: "" });
   const [adjustForm, setAdjustForm] = useState({ medicine_batch_id: "", quantity_delta: "", notes: "" });
   useEffect(() => {
@@ -967,18 +1029,35 @@ export function StockManagement({ mode = "all" }) {
     const loader = mode === "critical" ? stockService.critical : mode === "expired" ? stockService.batches : stockService.list;
     return loader().then((data) => setRows(normalizeList(data))).catch((error) => Toast.error(error?.response?.data?.message || "Gagal memuat stok"));
   };
+  const isExpiredBatch = (row) => {
+    const daysRemaining = Number(row?.days_remaining);
+    if (Number.isFinite(daysRemaining) && daysRemaining <= 0) return true;
+    return String(row?.status || "").trim().toLowerCase() === "expired";
+  };
   const createBatch = async () => {
-    await stockService.addBatch({
-      ...batchForm,
-      supplier_id: batchForm.supplier_id || null,
-      manufacture_date: batchForm.manufacture_date || null,
-      initial_quantity: Number(batchForm.initial_quantity || 0),
-      unit_cost: batchForm.unit_cost ? Number(batchForm.unit_cost) : null
-    });
-    setBatchOpen(false);
-    setShowManufactureDate(false);
-    await loadStocks();
-    Toast.success("Batch stok tersimpan ke backend");
+    if (!batchForm.medicine_id || !batchForm.batch_number.trim() || !batchForm.expired_date || !batchForm.received_date || !batchForm.initial_quantity) {
+      Toast.warning("Obat, nomor batch, tanggal masuk gudang, tanggal kadaluarsa, dan jumlah awal wajib diisi");
+      return;
+    }
+    if (batchForm.expired_date < batchForm.received_date) {
+      Toast.warning("Tanggal kadaluarsa tidak boleh lebih awal dari tanggal masuk gudang");
+      return;
+    }
+    try {
+      await stockService.addBatch({
+        ...batchForm,
+        supplier_id: batchForm.supplier_id || null,
+        manufacture_date: batchForm.manufacture_date || null,
+        initial_quantity: Number(batchForm.initial_quantity || 0),
+        unit_cost: batchForm.unit_cost ? Number(batchForm.unit_cost) : null
+      });
+      setBatchOpen(false);
+      setShowManufactureDate(false);
+      await loadStocks();
+      Toast.success("Batch stok tersimpan ke backend");
+    } catch (error) {
+      Toast.error(error?.response?.data?.detail || error?.response?.data?.message || error?.message || "Gagal menyimpan batch stok");
+    }
   };
   const adjustStock = async () => {
     await stockService.adjustment({
@@ -989,6 +1068,25 @@ export function StockManagement({ mode = "all" }) {
     setAdjustOpen(false);
     await loadStocks();
     Toast.success("Adjustment stok tersimpan ke backend");
+  };
+  const requestDiscard = (row) => {
+    if (!isExpiredBatch(row)) return;
+    setDiscardTarget(row);
+  };
+  const confirmDiscard = async () => {
+    const batchId = discardTarget?.medicine_batch_id || discardTarget?.id;
+    if (!batchId) return;
+    setDiscarding(true);
+    try {
+      await stockService.discardBatch(batchId);
+      setDiscardTarget(null);
+      await loadStocks();
+      Toast.success("Batch expired dibuang dan stok berkurang");
+    } catch (error) {
+      Toast.error(error?.response?.data?.detail || error?.response?.data?.message || error?.message || "Gagal membuang batch expired");
+    } finally {
+      setDiscarding(false);
+    }
   };
   const openDetail = (row) => {
     const targetId = row?.medicine_id || row?.id;
@@ -1040,8 +1138,25 @@ export function StockManagement({ mode = "all" }) {
           onSelect={setQuery}
         />
       </div>
-      <DataTable rows={filteredRows} columns={columns} onView={openDetail} />
-      <ModalForm open={batchOpen} title="Tambah Batch Stok" onClose={() => setBatchOpen(false)} footer={<><button className="btn-secondary" onClick={() => setBatchOpen(false)}>Batal</button><button className="btn-primary" onClick={createBatch}>Simpan Batch</button></>}>
+      <DataTable
+        rows={filteredRows}
+        columns={columns}
+        onView={openDetail}
+        renderActions={mode === "expired" ? (row) => (
+          isExpiredBatch(row) ? (
+            <button
+              type="button"
+              className="inline-flex items-center justify-center gap-2 rounded-full border border-danger/30 bg-danger-soft px-3 py-2 text-xs font-bold text-danger transition hover:bg-danger hover:text-white"
+              onClick={() => requestDiscard(row)}
+            >
+              <FiTrash2 /> Buang
+            </button>
+          ) : (
+            <span className="px-3 py-2 text-xs font-semibold text-muted">-</span>
+          )
+        ) : null}
+      />
+      <ModalForm open={batchOpen} title="Tambah Batch Stok" onClose={() => setBatchOpen(false)} footer={<><button type="button" className="btn-secondary" onClick={() => setBatchOpen(false)}>Batal</button><button type="button" className="btn-primary" onClick={createBatch}>Simpan Batch</button></>}>
         <div className="space-y-4">
           <p className="rounded-2xl bg-surface-low p-4 text-sm text-muted">
             Tanggal masuk gudang = kapan batch diterima. Tanggal produksi = opsional. Tanggal kadaluarsa = batas pakai batch.
@@ -1098,6 +1213,13 @@ export function StockManagement({ mode = "all" }) {
           <textarea className="field" rows="3" placeholder="Catatan adjustment" value={adjustForm.notes} onChange={(e) => setAdjustForm({ ...adjustForm, notes: e.target.value })} />
         </div>
       </ModalForm>
+      <ConfirmDialog
+        open={Boolean(discardTarget)}
+        title="Buang Batch Expired"
+        message={discardTarget ? `Buang batch ${discardTarget.batch_number || discardTarget.name}? Stok batch ini akan dihapus dari stok aktif dan total stok obat berkurang.` : "Buang batch expired ini?"}
+        onCancel={() => setDiscardTarget(null)}
+        onConfirm={confirmDiscard}
+      />
     </>
   );
 }

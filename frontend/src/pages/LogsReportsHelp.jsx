@@ -22,7 +22,7 @@ export function ErrorLogDashboard() {
     await load();
     Toast.success("Error log ditandai resolved");
   };
-  return <><PageHeader title="Error Log Dashboard" subtitle="Pantau error backend, level, dan status resolve." /><DataTable rows={rows} columns={[{ key: "path", label: "Path" }, { key: "message", label: "Message" }, { key: "level", label: "Level", type: "badge" }, { key: "status", label: "Status", type: "badge" }, { key: "created_at", label: "Waktu" }]} onEdit={resolveLog} /></>;
+  return <><PageHeader title="Error Log Dashboard" subtitle="Pantau error backend, level, dan status resolve." /><DataTable rows={rows} columns={[{ key: "path", label: "Path" }, { key: "message", label: "Message" }, { key: "level", label: "Level", type: "badge" }, { key: "status", label: "Status", type: "badge" }, { key: "created_at", label: "Waktu" }]} onEdit={resolveLog} editLabel="Resolve" editTitle="Tandai resolved" /></>;
 }
 
 export function AuditLogPage() {
@@ -303,7 +303,7 @@ export function SalesReport() {
   const verifiedSales = salesData.reduce((sum, row) => sum + Number(row.paid_sales || 0), 0);
   const totalOrders = salesData.reduce((sum, row) => sum + Number(row.total_orders || 0), 0);
   const monthlyGrossSales = revenueData.reduce((sum, row) => sum + Number(row.gross_sales || 0), 0);
-  const growth = calcGrowth(revenueData);
+  const growth = calcGrowth(revenueData, salesData);
   const maxBest = Math.max(...bestSellingRows.map((item) => Number(item.total_sold || 0)), 1);
 
   return (
@@ -365,7 +365,7 @@ export function SalesReport() {
                 type="bar"
                 valueKey="sales"
                 tooltipFormatter={(value) => rupiah(value)}
-                yAxisFormatter={(value) => `${Math.round(Number(value || 0) / 1000000)}jt`}
+                yAxisFormatter={(value) => formatYAxisCompact(value)}
                 hideHeader
                 className="border-0 bg-transparent p-0 shadow-none"
                 chartHeight="h-[320px]"
@@ -508,12 +508,31 @@ function formatPeriod(value) {
   return new Intl.DateTimeFormat("id-ID", { month: "short" }).format(date).replace(".", "");
 }
 
-function calcGrowth(rows) {
-  if (!Array.isArray(rows) || rows.length < 2) return 0;
-  const current = Number(rows[rows.length - 1]?.gross_sales || 0);
-  const previous = Number(rows[rows.length - 2]?.gross_sales || 0);
+function calcGrowth(revenueRows, salesRows = []) {
+  const source = Array.isArray(revenueRows) && revenueRows.length >= 2
+    ? [...revenueRows].sort((a, b) => String(a.period || "").localeCompare(String(b.period || "")))
+    : Array.isArray(salesRows) && salesRows.length >= 2
+      ? salesRows
+      : [];
+  if (source.length < 2) return 0;
+  const current = Number(source[source.length - 1]?.gross_sales || source[source.length - 1]?.paid_sales || 0);
+  const previous = Number(source[source.length - 2]?.gross_sales || source[source.length - 2]?.paid_sales || 0);
   if (!previous) return 0;
-  return ((current - previous) / previous) * 100;
+  const growth = ((current - previous) / previous) * 100;
+  return Math.max(0, Math.min(100, growth));
+}
+
+function formatYAxisCompact(value) {
+  const amount = Number(value || 0);
+  if (amount >= 1000000) {
+    const formatted = amount / 1000000;
+    return `${Number.isInteger(formatted) ? formatted.toFixed(0) : formatted.toFixed(1)} jt`;
+  }
+  if (amount > 0) {
+    const roundedHundreds = Math.max(100, Math.ceil(amount / 100000) * 100);
+    return `${roundedHundreds} rb`;
+  }
+  return "0";
 }
 
 function InfoPill({ label, value, icon: Icon }) {
@@ -616,13 +635,100 @@ export function MonitoringPage() {
 }
 
 export function HelpPage({ type }) {
-  const content = {
-    guide: ["Login sesuai role", "Gunakan menu sidebar role-based", "CRUD data dari halaman manajemen", "Upload resep dan bukti pembayaran dari form upload"],
-    faq: ["Semua data dibaca dari backend FastAPI.", "Token tersimpan di localStorage.", "Role menu mengikuti response login."],
-    troubleshooting: ["Cek VITE_API_BASE_URL di .env", "Pastikan backend FastAPI berjalan di port 8000", "Cek console browser untuk error API"],
-    system: ["Audit log aktivitas pengguna", "Error log dan status resolve", "Konfigurasi CORS dan koneksi API", "Panduan operasional sistem"]
-  };
-  const title = type === "guide" ? "User Guide" : type === "faq" ? "Bantuan" : type === "system" ? "Sistem" : "Troubleshooting";
+  const patientGuide = [
+    {
+      title: "1. Login ke akun pasien",
+      description: "Masuk menggunakan email dan password yang terdaftar, lalu buka dashboard pasien."
+    },
+    {
+      title: "2. Cari obat di katalog",
+      description: "Gunakan katalog untuk melihat obat, detail produk, stok aktif, dan detail batch jika tersedia."
+    },
+    {
+      title: "3. Upload resep untuk obat wajib resep",
+      description: "Jika obat membutuhkan resep dokter, upload foto resep terlebih dahulu lalu tunggu verifikasi apoteker atau admin."
+    },
+    {
+      title: "4. Checkout pesanan",
+      description: "Setelah resep disetujui, lanjutkan checkout dengan alur ambil di klinik."
+    },
+    {
+      title: "5. Upload bukti pembayaran",
+      description: "Setelah pesanan masuk status pembayaran, upload bukti transfer agar diverifikasi admin."
+    },
+    {
+      title: "6. Pantau status pesanan",
+      description: "Cek detail pesanan untuk melihat alur checkout, verifikasi resep, pembayaran, packaging, siap diambil, dan selesai."
+    }
+  ];
+
+  const faqItems = [
+    {
+      q: "Bagaimana cara membeli obat secara online?",
+      a: "Buka katalog pasien, pilih obat, baca detail produk, upload resep jika wajib resep, lalu checkout dan lanjutkan alur pembayaran manual."
+    },
+    {
+      q: "Apa yang harus dilakukan jika obat membutuhkan resep dokter?",
+      a: "Upload foto resep melalui menu Ajukan Resep atau dari detail pesanan, lalu tunggu verifikasi apoteker atau admin sebelum checkout dilanjutkan."
+    },
+    {
+      q: "Kenapa tombol checkout belum aktif?",
+      a: "Biasanya karena resep belum diverifikasi atau keranjang masih kosong. Pastikan resep berstatus APPROVED."
+    },
+    {
+      q: "Berapa kali satu resep bisa dipakai?",
+      a: "Satu resep yang sudah disetujui hanya bisa dipakai untuk satu transaksi."
+    },
+    {
+      q: "Bagaimana cara upload bukti pembayaran?",
+      a: "Masuk ke detail pesanan, buka halaman pembayaran, lalu unggah gambar bukti transfer sesuai nominal yang tertera."
+    },
+    {
+      q: "Siapa yang memverifikasi bukti pembayaran?",
+      a: "Admin memeriksa bukti pembayaran secara manual sebelum status pesanan berubah menjadi PAID."
+    },
+    {
+      q: "Apakah pesanan bisa diantar ke rumah?",
+      a: "Tidak. Alur sistem ini pickup-only, jadi pesanan diambil di klinik setelah statusnya siap diambil."
+    },
+    {
+      q: "Bagaimana cara melihat riwayat pesanan?",
+      a: "Buka menu Pesanan Saya atau Riwayat Pembelian di dashboard pasien."
+    },
+    {
+      q: "Kenapa stok di katalog berbeda dengan detail batch?",
+      a: "Katalog menampilkan total stok aktif obat, sedangkan detail batch menampilkan stok per batch beserta tanggal kadaluarsanya."
+    },
+    {
+      q: "Bagaimana jika resep saya ditolak?",
+      a: "Perbaiki resep sesuai catatan penolakan, lalu upload ulang melalui halaman resep atau detail pesanan."
+    }
+  ];
+
+  const troubleshootingItems = [
+    {
+      title: "Halaman putih setelah upload resep",
+      description: "Biasanya karena ID pesanan tidak valid atau data detail belum berhasil dimuat. Refresh halaman dan buka ulang dari Pesanan Saya."
+    },
+    {
+      title: "Upload resep gagal",
+      description: "Pastikan file berupa gambar yang valid, ukuran tidak terlalu besar, dan form berisi nama dokter serta nomor resep."
+    },
+    {
+      title: "Checkout menolak resep",
+      description: "Cek status resep di halaman detail. Jika masih PENDING atau REJECTED, tunggu verifikasi atau upload ulang."
+    },
+    {
+      title: "Bukti pembayaran tidak muncul",
+      description: "Periksa koneksi jaringan dan pastikan file bukti yang diunggah belum rusak."
+    },
+    {
+      title: "Status pesanan tidak berubah",
+      description: "Tunggu beberapa detik karena halaman melakukan refresh berkala. Jika tetap sama, coba muat ulang halaman."
+    }
+  ];
+
+  const title = type === "guide" ? "User Guide" : type === "faq" ? "Bantuan Pasien" : type === "system" ? "Sistem" : "Troubleshooting";
   const systemLinks = [
     { label: "Audit Log", description: "Aktivitas user, entity, IP, dan request backend.", to: "/admin/system/audit" },
     { label: "Error Log", description: "Pantau error backend dan status penyelesaiannya.", to: "/admin/system/errors" },
@@ -630,7 +736,12 @@ export function HelpPage({ type }) {
   ];
   return (
     <>
-      <PageHeader title={title} subtitle="Panduan singkat penggunaan frontend demo." />
+      <PageHeader
+        title={title}
+        subtitle={type === "faq"
+          ? "Panduan penggunaan pasien, FAQ, dan troubleshooting untuk pembelian obat online."
+          : "Panduan singkat penggunaan frontend demo."}
+      />
       {type === "system" && (
         <div className="mb-6 grid gap-4 md:grid-cols-3">
           {systemLinks.map((item) => (
@@ -641,11 +752,75 @@ export function HelpPage({ type }) {
           ))}
         </div>
       )}
-      <div className="glass-card p-6">
-        <div className="space-y-4">
-          {(content[type] || []).map((item, index) => <div key={item} className="flex gap-4 rounded-2xl bg-surface-low p-4"><span className="grid h-8 w-8 place-items-center rounded-full bg-primary text-sm font-bold text-white">{index + 1}</span><p className="font-bold">{item}</p></div>)}
+      {type === "faq" ? (
+        <div className="space-y-6">
+          <section className="grid gap-4 lg:grid-cols-2">
+            <div className="glass-card p-6">
+              <div className="mb-5">
+                <p className="text-xs font-extrabold uppercase tracking-wider text-muted">A. User Guide</p>
+                <h3 className="mt-2 text-2xl font-extrabold text-primary">Langkah Penggunaan Sistem</h3>
+              </div>
+              <div className="space-y-4">
+                {patientGuide.map((item) => (
+                  <div key={item.title} className="rounded-2xl bg-surface-low p-4">
+                    <p className="font-extrabold text-primary">{item.title}</p>
+                    <p className="mt-2 text-sm text-muted">{item.description}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="glass-card p-6">
+              <div className="mb-5">
+                <p className="text-xs font-extrabold uppercase tracking-wider text-muted">B. FAQ</p>
+                <h3 className="mt-2 text-2xl font-extrabold text-primary">Pertanyaan yang Sering Ditanyakan</h3>
+              </div>
+              <div className="space-y-3">
+                {faqItems.map((item, index) => (
+                  <details key={item.q} className="group rounded-2xl border border-outline/60 bg-surface-low p-4">
+                    <summary className="cursor-pointer list-none font-extrabold text-primary">
+                      <span className="mr-3 inline-flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs text-white">{index + 1}</span>
+                      {item.q}
+                    </summary>
+                    <p className="mt-3 pl-10 text-sm leading-6 text-muted">{item.a}</p>
+                  </details>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section className="glass-card p-6">
+            <div className="mb-5">
+              <p className="text-xs font-extrabold uppercase tracking-wider text-muted">C. Troubleshooting</p>
+              <h3 className="mt-2 text-2xl font-extrabold text-primary">Masalah Umum dan Solusi</h3>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {troubleshootingItems.map((item) => (
+                <div key={item.title} className="rounded-2xl border border-outline/60 bg-white p-4">
+                  <p className="font-extrabold text-primary">{item.title}</p>
+                  <p className="mt-2 text-sm leading-6 text-muted">{item.description}</p>
+                </div>
+              ))}
+            </div>
+          </section>
         </div>
-      </div>
+      ) : (
+        <div className="glass-card p-6">
+          <div className="space-y-4">
+            {(type === "guide"
+              ? ["Login sesuai role", "Gunakan menu sidebar role-based", "CRUD data dari halaman manajemen", "Upload resep dan bukti pembayaran dari form upload"]
+              : type === "system"
+                ? ["Audit log aktivitas pengguna", "Error log dan status resolve", "Konfigurasi CORS dan koneksi API", "Panduan operasional sistem"]
+                : ["Cek VITE_API_BASE_URL di .env", "Pastikan backend FastAPI berjalan di port 8000", "Cek console browser untuk error API"]
+            ).map((item, index) => (
+              <div key={item} className="flex gap-4 rounded-2xl bg-surface-low p-4">
+                <span className="grid h-8 w-8 place-items-center rounded-full bg-primary text-sm font-bold text-white">{index + 1}</span>
+                <p className="font-bold">{item}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </>
   );
 }

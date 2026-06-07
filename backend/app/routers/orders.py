@@ -97,6 +97,8 @@ async def upload_payment_proof(
     if not order.payments:
         raise NotFoundException("Data pembayaran tidak ditemukan")
     payment = order.payments[0]
+    if payment.proof_file_url or payment.proof_uploaded_at or payment.status in {"WAITING_VERIFICATION", "VERIFIED", "REJECTED"}:
+        raise AppException("Bukti pembayaran sudah pernah diupload", "PAYMENT_PROOF_ALREADY_UPLOADED")
     if payment.status == "VERIFIED":
         raise AppException("Pembayaran sudah diverifikasi", "PAYMENT_ALREADY_VERIFIED")
     payment.proof_file_url = await save_uploaded_image(proof, "payment-proofs")

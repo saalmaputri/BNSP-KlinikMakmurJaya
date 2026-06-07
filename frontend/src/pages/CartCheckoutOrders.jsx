@@ -10,6 +10,7 @@ import {
 } from "react-icons/fi";
 import CartItem from "../components/CartItem";
 import EmptyState from "../components/EmptyState";
+import ConfirmDialog from "../components/ConfirmDialog";
 import StatusBadge from "../components/StatusBadge";
 import UploadPreview from "../components/UploadPreview";
 import { Toast } from "../components/Toast";
@@ -156,6 +157,7 @@ export function CartPage({ title = "Keranjang", subtitle = "Periksa jumlah obat 
   const [items, setItems] = useState([]);
   const [hasApprovedPrescription, setHasApprovedPrescription] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [removeTarget, setRemoveTarget] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -195,11 +197,17 @@ export function CartPage({ title = "Keranjang", subtitle = "Periksa jumlah obat 
     }
   };
 
-  const removeItem = async (item) => {
+  const requestRemoveItem = (item) => {
+    setRemoveTarget(item);
+  };
+
+  const confirmRemoveItem = async () => {
+    if (!removeTarget?.id) return;
     try {
-      await cartService.remove(item.id);
+      await cartService.remove(removeTarget.id);
       await load();
       Toast.success("Item dihapus dari keranjang");
+      setRemoveTarget(null);
     } catch (error) {
       Toast.error(errorMessage(error, "Item gagal dihapus"));
     }
@@ -229,7 +237,7 @@ export function CartPage({ title = "Keranjang", subtitle = "Periksa jumlah obat 
               item={item}
               onInc={() => updateQty(item, (item.quantity || 1) + 1)}
               onDec={() => updateQty(item, (item.quantity || 1) - 1)}
-              onRemove={() => removeItem(item)}
+              onRemove={() => requestRemoveItem(item)}
             />
           ))}
         </div>
@@ -251,6 +259,13 @@ export function CartPage({ title = "Keranjang", subtitle = "Periksa jumlah obat 
           <Link className="btn-secondary mt-3 w-full" to="/pasien/catalog">Tambah Produk</Link>
         </aside>
       </div>
+      <ConfirmDialog
+        open={Boolean(removeTarget)}
+        title="Hapus Item Keranjang"
+        message={removeTarget ? `Hapus ${removeTarget.medicine?.name || removeTarget.medicine_name_snapshot || "item ini"} dari keranjang?` : "Hapus item ini?"}
+        onCancel={() => setRemoveTarget(null)}
+        onConfirm={confirmRemoveItem}
+      />
     </>
   );
 }
@@ -415,6 +430,10 @@ export function CheckoutSuccessPage() {
   const [prescription, setPrescription] = useState(null);
   const [syncing, setSyncing] = useState(true);
 
+  if (!id) {
+    return <EmptyState title="Pesanan tidak ditemukan" description="ID pesanan tidak valid atau tidak tersedia." />;
+  }
+
   useEffect(() => {
     if (!id) return undefined;
 
@@ -523,6 +542,11 @@ export function PaymentPage() {
   const [order, setOrder] = useState(null);
   const [proofFile, setProofFile] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [submittedPayment, setSubmittedPayment] = useState(null);
+
+  if (!id) {
+    return <EmptyState title="Pesanan tidak ditemukan" description="ID pesanan tidak valid atau tidak tersedia." />;
+  }
 
   useEffect(() => {
     if (!id) return undefined;
@@ -553,20 +577,50 @@ export function PaymentPage() {
     verified_at: order.verified_at,
     rejection_reason: order.rejection_reason
   } : null;
+  const proofAlreadySent = Boolean(payment?.proof_uploaded_at || payment?.proof_file_url) || ["WAITING_VERIFICATION", "VERIFIED", "REJECTED"].includes(payment?.status);
   const uploadProof = async (event) => {
     event.preventDefault();
     if (!proofFile) return Toast.warning("Pilih gambar bukti pembayaran");
     setSubmitting(true);
     try {
-      await cartService.uploadProof(id, proofFile);
+      const uploaded = await cartService.uploadProof(id, proofFile);
+      setSubmittedPayment(uploaded || { status: "WAITING_VERIFICATION" });
+      setProofFile(null);
       Toast.success("Bukti pembayaran berhasil dikirim");
-      navigate(`/pasien/checkout/success/${id}`, { replace: true });
     } catch (error) {
       Toast.error(errorMessage(error, "Bukti pembayaran gagal dikirim"));
     } finally {
       setSubmitting(false);
     }
   };
+
+  if (submittedPayment || proofAlreadySent) {
+    return (
+      <div className="mx-auto max-w-3xl">
+        <PageHeader
+          title="Bukti Pembayaran Terkirim"
+          subtitle={`Pesanan ${order?.order_number || id} sedang menunggu verifikasi admin.`}
+          action={<Link className="btn-secondary" to={`/pasien/orders/${id}`}><FiArrowLeft /> Detail Pesanan</Link>}
+        />
+        <section className="glass-card p-8 text-center">
+          <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-warning-soft text-warning">
+            <FiCheckCircle size={42} />
+          </div>
+          <h2 className="mt-6 text-2xl font-extrabold text-primary">Bukti pembayaran sudah diterima</h2>
+          <p className="mt-3 text-muted">Admin akan memverifikasi bukti pembayaran sebelum pesanan masuk proses berikutnya.</p>
+          <div className="mx-auto mt-8 grid max-w-2xl gap-3 rounded-2xl bg-surface-low p-5 text-left sm:grid-cols-2">
+            <InfoRow label="Nomor Order" value={order?.order_number || id} />
+            <InfoRow label="Nomor Pembayaran" value={payment?.payment_number || submittedPayment?.payment_number || "-"} />
+            <InfoRow label="Metode" value={payment?.method || submittedPayment?.method || "-"} />
+            <InfoRow label="Status" value={<StatusBadge status={payment?.status || submittedPayment?.status || "WAITING_VERIFICATION"} />} />
+          </div>
+          <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
+            <Link className="btn-secondary" to={`/pasien/orders/${id}`}>Lihat Detail Pesanan</Link>
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   if (order && order.status !== "PENDING_PAYMENT") {
     return (
@@ -576,7 +630,7 @@ export function PaymentPage() {
           <StatusBadge status={order.status} />
           <h2 className="mt-6 text-2xl font-extrabold text-primary">Pembayaran menunggu verifikasi admin</h2>
           <p className="mt-3 text-muted">Halaman ini akan terbuka otomatis setelah pesanan masuk ke status <b>PENDING_PAYMENT</b> dan bukti pembayaran siap diverifikasi.</p>
-          <Link className="btn-primary mt-6" to={`/pasien/checkout/success/${id}`}>Lihat Status Checkout</Link>
+          <Link className="btn-secondary mt-6" to={`/pasien/orders/${id}`}>Lihat Detail Pesanan</Link>
         </section>
       </div>
     );
@@ -601,7 +655,7 @@ export function PaymentPage() {
         <form className="glass-card p-6" onSubmit={uploadProof}>
           <h3 className="text-xl font-extrabold text-primary">Upload Bukti Pembayaran</h3>
           <div className="mt-5"><UploadPreview label="Gambar bukti pembayaran" onChange={setProofFile} /></div>
-          <button className="btn-primary mt-5 w-full" type="submit" disabled={submitting}>{submitting ? "Mengirim..." : "Kirim Bukti Pembayaran"}</button>
+          <button className="btn-primary mt-5 w-full" type="submit" disabled={submitting || proofAlreadySent}>{submitting ? "Mengirim..." : "Kirim Bukti Pembayaran"}</button>
         </form>
       </div>
     </>
@@ -676,6 +730,10 @@ export function OrderDetail() {
   const { id } = useParams();
   const [order, setOrder] = useState(null);
   const [prescription, setPrescription] = useState(null);
+
+  if (!id) {
+    return <EmptyState title="Pesanan tidak ditemukan" description="ID pesanan tidak valid atau tidak tersedia." />;
+  }
   useEffect(() => {
     if (!id) return undefined;
     let active = true;
@@ -721,7 +779,7 @@ export function OrderDetail() {
     verified_at: order.verified_at,
     rejection_reason: order.rejection_reason
   } : null;
-  const canUploadPayment = order.status === "PENDING_PAYMENT" && isOnlinePayment(payment?.method) && ["PENDING", "REJECTED"].includes(payment?.status);
+  const canUploadPayment = order.status === "PENDING_PAYMENT" && isOnlinePayment(payment?.method) && payment?.status === "PENDING" && !payment?.proof_uploaded_at && !payment?.proof_file_url;
   const canUploadPrescription = requiresPrescription(order) || prescription?.status === "REJECTED";
 
   return (

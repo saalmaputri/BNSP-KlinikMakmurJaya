@@ -8,8 +8,8 @@ export default function ConfirmDialog({ open, title = "Konfirmasi", message, onC
       onClose={onCancel}
       footer={
         <>
-          <button className="btn-secondary" onClick={onCancel}>Batal</button>
-          <button className="btn-primary bg-danger" onClick={onConfirm}>Ya, lanjutkan</button>
+          <button type="button" className="btn-secondary" onClick={onCancel}>Batal</button>
+          <button type="button" className="btn-primary bg-danger" onClick={onConfirm}>Ya, lanjutkan</button>
         </>
       }
     >

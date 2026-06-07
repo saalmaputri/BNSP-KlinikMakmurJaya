@@ -5,11 +5,11 @@ import { authService } from "../services/authService";
 import { Toast } from "../components/Toast";
 import { roleDashboards } from "../config/roleMenus";
 
-function AuthShell({ title, subtitle, children }) {
+function AuthShell({ title, subtitle, children, panelClassName = "max-w-md", panelPadding = "p-8" }) {
   return (
     <main className="grid min-h-screen grid-cols-1 bg-background lg:grid-cols-2">
       <section className="flex items-center justify-center p-6">
-        <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-soft">
+        <div className={`w-full ${panelClassName} rounded-3xl bg-white ${panelPadding} shadow-soft`}>
           <h1 className="text-3xl font-extrabold text-primary">Klinik Makmur Jaya</h1>
           <p className="mt-2 text-muted">Medical e-commerce dashboard</p>
           <div className="my-8">
@@ -144,37 +144,37 @@ export function Register() {
   };
 
   return (
-    <AuthShell title="Register" subtitle="Buat akun pasien untuk belanja obat dan upload resep.">
-      <form className="space-y-4" onSubmit={submit} noValidate>
+    <AuthShell title="Register" subtitle="Buat akun pasien untuk belanja obat dan upload resep." panelClassName="max-w-2xl" panelPadding="p-6">
+      <form className="grid gap-3 md:grid-cols-2" onSubmit={submit} noValidate>
         <label className="block text-sm font-bold text-muted">
           Nama lengkap
           <input
-            className="field mt-2"
+            className="field mt-1 h-11"
             placeholder="Masukkan nama lengkap"
             value={form.name}
             onChange={(e) => updateField("name", e.target.value)}
             required
             aria-invalid={Boolean(errors.name)}
           />
-          {errors.name && <span className="mt-1 block text-xs text-red-600">{errors.name}</span>}
+          {errors.name && <span className="mt-1 block text-[11px] text-red-600">{errors.name}</span>}
         </label>
         <label className="block text-sm font-bold text-muted">
           Email
           <input
-            className="field mt-2"
+            className="field mt-1 h-11"
             type="email"
-            placeholder="nama@email.com"
+            placeholder="nama@gmail.com"
             value={form.email}
             onChange={(e) => updateField("email", e.target.value)}
             required
             aria-invalid={Boolean(errors.email)}
           />
-          {errors.email && <span className="mt-1 block text-xs text-red-600">{errors.email}</span>}
+          {errors.email && <span className="mt-1 block text-[11px] text-red-600">{errors.email}</span>}
         </label>
         <label className="block text-sm font-bold text-muted">
           Nomor telepon
           <input
-            className="field mt-2"
+            className="field mt-1 h-11"
             type="tel"
             placeholder="08xxxxxxxxxx"
             value={form.phone}
@@ -182,70 +182,68 @@ export function Register() {
             required
             aria-invalid={Boolean(errors.phone)}
           />
-          {errors.phone && <span className="mt-1 block text-xs text-red-600">{errors.phone}</span>}
+          {errors.phone && <span className="mt-1 block text-[11px] text-red-600">{errors.phone}</span>}
         </label>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block text-sm font-bold text-muted">
-            Tanggal lahir
-            <input
-              className="field mt-2"
-              type="date"
-              value={form.date_of_birth}
-              onChange={(e) => updateField("date_of_birth", e.target.value)}
-              required
-              aria-invalid={Boolean(errors.date_of_birth)}
-            />
-            {errors.date_of_birth && <span className="mt-1 block text-xs text-red-600">{errors.date_of_birth}</span>}
-          </label>
-          <label className="block text-sm font-bold text-muted">
-            Jenis kelamin
-            <select
-              className="field mt-2"
-              value={form.gender}
-              onChange={(e) => updateField("gender", e.target.value)}
-              required
-              aria-invalid={Boolean(errors.gender)}
-            >
-              <option value="">Pilih jenis kelamin</option>
-              <option value="Laki-laki">Laki-laki</option>
-              <option value="Perempuan">Perempuan</option>
-            </select>
-            {errors.gender && <span className="mt-1 block text-xs text-red-600">{errors.gender}</span>}
-          </label>
-        </div>
         <label className="block text-sm font-bold text-muted">
-          Alamat
-          <textarea
-            className="field mt-2"
-            rows="3"
-            placeholder="Alamat lengkap"
-            value={form.address}
-            onChange={(e) => updateField("address", e.target.value)}
+          Tanggal lahir
+          <input
+            className="field mt-1 h-11"
+            type="date"
+            value={form.date_of_birth}
+            onChange={(e) => updateField("date_of_birth", e.target.value)}
             required
-            aria-invalid={Boolean(errors.address)}
+            aria-invalid={Boolean(errors.date_of_birth)}
           />
-          {errors.address && <span className="mt-1 block text-xs text-red-600">{errors.address}</span>}
+          {errors.date_of_birth && <span className="mt-1 block text-[11px] text-red-600">{errors.date_of_birth}</span>}
+        </label>
+        <label className="block text-sm font-bold text-muted">
+          Jenis kelamin
+          <select
+            className="field mt-1 h-11"
+            value={form.gender}
+            onChange={(e) => updateField("gender", e.target.value)}
+            required
+            aria-invalid={Boolean(errors.gender)}
+          >
+            <option value="">Pilih jenis kelamin</option>
+            <option value="male">Laki-laki</option>
+            <option value="female">Perempuan</option>
+            <option value="other">Lainnya</option>
+          </select>
+          {errors.gender && <span className="mt-1 block text-[11px] text-red-600">{errors.gender}</span>}
         </label>
         <label className="block text-sm font-bold text-muted">
           Password
           <input
-            className="field mt-2"
+            className="field mt-1 h-11"
             type="password"
-            placeholder="Contoh: Password123"
+            placeholder="password"
             value={form.password}
             onChange={(e) => updateField("password", e.target.value)}
             minLength={8}
             required
             aria-invalid={Boolean(errors.password)}
           />
-          {errors.password && <span className="mt-1 block text-xs text-red-600">{errors.password}</span>}
-          {!errors.password && <span className="mt-1 block text-xs text-muted">Minimal 8 karakter, berisi huruf besar, huruf kecil, dan angka.</span>}
+          {errors.password && <span className="mt-1 block text-[11px] text-red-600">{errors.password}</span>}
+          {!errors.password && <span className="mt-1 block text-[11px] text-muted">Minimal 8 karakter, berisi huruf besar, huruf kecil, dan angka.</span>}
+        </label>
+        <label className="block text-sm font-bold text-muted md:col-span-2">
+          Alamat
+          <textarea
+            className="field mt-1 h-20 resize-none"
+            placeholder="Alamat lengkap"
+            value={form.address}
+            onChange={(e) => updateField("address", e.target.value)}
+            required
+            aria-invalid={Boolean(errors.address)}
+          />
+          {errors.address && <span className="mt-1 block text-[11px] text-red-600">{errors.address}</span>}
         </label>
         {errors.submit && <p className="text-sm font-semibold text-red-600">{errors.submit}</p>}
-        <button className="btn-primary w-full" type="submit" disabled={isSubmitting}>
+        <button className="btn-primary w-full md:col-span-2" type="submit" disabled={isSubmitting}>
           {isSubmitting ? "Mendaftarkan..." : "Daftar"}
         </button>
-        <p className="text-center text-sm text-muted">
+        <p className="text-center text-sm text-muted md:col-span-2">
           Sudah punya akun? <Link className="font-bold text-primary" to="/login">Masuk</Link>
         </p>
       </form>

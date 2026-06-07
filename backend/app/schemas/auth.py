@@ -36,6 +36,26 @@ class RegisterRequest(BaseModel):
         cleaned = value.strip()
         return cleaned or None
 
+    @field_validator("gender")
+    @classmethod
+    def normalize_gender(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        gender = value.strip().lower()
+        aliases = {
+            "laki-laki": "male",
+            "laki": "male",
+            "pria": "male",
+            "perempuan": "female",
+            "wanita": "female",
+            "lain": "other",
+            "lainnya": "other",
+        }
+        gender = aliases.get(gender, gender)
+        if gender not in {"male", "female", "other"}:
+            raise ValueError("Jenis kelamin harus male, female, atau other")
+        return gender
+
 
 class LoginRequest(BaseModel):
     email: EmailStr

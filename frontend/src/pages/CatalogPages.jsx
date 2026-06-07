@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { FiAlertCircle, FiChevronRight, FiInfo, FiSearch, FiShoppingCart, FiUpload } from "react-icons/fi";
+import { FiAlertCircle, FiCheckCircle, FiChevronRight, FiInfo, FiSearch, FiShoppingCart, FiUpload } from "react-icons/fi";
 import DataTable from "../components/DataTable";
 import ProductCard from "../components/ProductCard";
 import UploadPreview from "../components/UploadPreview";
@@ -16,32 +16,10 @@ export function CatalogPage({ basePath = "/pasien/products", cartPath = "/pasien
   const [items, setItems] = useState([]);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("Semua");
-  const [hasApprovedPrescription, setHasApprovedPrescription] = useState(false);
+  const isPatient = authStorage.getUser()?.role === "pasien";
 
   useEffect(() => {
-    let active = true;
     medicineService.list().then((data) => setItems(normalizeList(data))).catch((error) => Toast.error(error?.response?.data?.message || "Gagal memuat katalog dari backend"));
-    const syncPrescriptionStatus = () => {
-      const user = authStorage.getUser();
-      if (user?.role !== "pasien") {
-        if (active) setHasApprovedPrescription(true);
-        return Promise.resolve();
-      }
-      return prescriptionService.mine()
-        .then((data) => {
-          if (!active) return;
-          setHasApprovedPrescription(Array.isArray(data) && data.some((item) => item.status === "APPROVED"));
-        })
-        .catch(() => {
-          if (active) setHasApprovedPrescription(false);
-        });
-    };
-    syncPrescriptionStatus();
-    const timer = window.setInterval(syncPrescriptionStatus, 5000);
-    return () => {
-      active = false;
-      window.clearInterval(timer);
-    };
   }, []);
 
   const filtered = useMemo(() => {
@@ -88,16 +66,12 @@ export function CatalogPage({ basePath = "/pasien/products", cartPath = "/pasien
             key={product.id}
             product={product}
             detailPath={`${basePath}/${product.id}`}
-            onAdd={allowCartActions ? async (item) => {
-              if (item.requires_prescription && !hasApprovedPrescription) {
-                navigate(`/pasien/prescriptions/upload?medicine_id=${item.id}`);
-                return;
-              }
+            onAdd={allowCartActions && (!product.requires_prescription || !isPatient) ? async (item) => {
               await cartService.add({ medicine_id: item.id, quantity: 1 });
               Toast.success("Produk ditambahkan ke keranjang");
             } : undefined}
-            onRequestPrescription={allowCartActions ? (item) => navigate(`/pasien/prescriptions/upload?medicine_id=${item.id}`) : undefined}
-            canAddPrescription={hasApprovedPrescription}
+            onRequestPrescription={product.requires_prescription && isPatient ? (item) => navigate(`/pasien/prescriptions/upload?medicine_id=${item.id}`) : undefined}
+            canAddPrescription={!isPatient}
           />
         ))}
       </div>
@@ -110,48 +84,21 @@ export function DetailObat({ cartPath = "/pasien/cart", catalogPath = "/pasien/c
   const navigate = useNavigate();
   const [product, setProduct] = useState(null);
   const [batches, setBatches] = useState([]);
-  const [hasApprovedPrescription, setHasApprovedPrescription] = useState(false);
   useEffect(() => {
-    let alive = true;
     Promise.all([
       medicineService.detail(id),
       showBatchDetails ? medicineService.batches(id) : Promise.resolve([])
     ])
       .then(([medicine, batchData]) => {
-        if (!alive) return;
         setProduct(medicine);
         setBatches(normalizeList(batchData));
       })
       .catch((error) => Toast.error(error?.response?.data?.message || "Gagal memuat detail obat"));
-    const syncPrescriptionStatus = () => {
-      const user = authStorage.getUser();
-      if (user?.role !== "pasien") {
-        if (alive) setHasApprovedPrescription(true);
-        return Promise.resolve();
-      }
-      return prescriptionService.mine()
-        .then((data) => {
-          if (!alive) return;
-          setHasApprovedPrescription(Array.isArray(data) && data.some((item) => item.status === "APPROVED"));
-        })
-        .catch(() => {
-          if (alive) setHasApprovedPrescription(false);
-        });
-    };
-    syncPrescriptionStatus();
-    const timer = window.setInterval(syncPrescriptionStatus, 5000);
-    return () => {
-      alive = false;
-      window.clearInterval(timer);
-    };
   }, [id]);
   if (!product) return null;
 
   const addToCart = async () => {
-    if (product.requires_prescription && !hasApprovedPrescription) {
-      Toast.warning("Upload resep dan tunggu verifikasi apoteker terlebih dahulu");
-      return;
-    }
+    if (product.requires_prescription) return;
     await cartService.add({ medicine_id: product.id, quantity: 1 });
     Toast.success("Produk ditambahkan ke keranjang");
   };
@@ -159,7 +106,7 @@ export function DetailObat({ cartPath = "/pasien/cart", catalogPath = "/pasien/c
     await addToCart();
     navigate(cartPath);
   };
-  const prescriptionFlow = product.requires_prescription && !hasApprovedPrescription;
+  const prescriptionFlow = Boolean(product.requires_prescription);
   const stockReady = Number(product.current_stock || 0) > Number(product.minimum_stock || 0);
   const batchColumns = [
     { key: "batch_number", label: "Batch" },
@@ -222,17 +169,13 @@ export function DetailObat({ cartPath = "/pasien/cart", catalogPath = "/pasien/c
                 <div>
                   <h3 className="font-extrabold text-primary">Perhatian Khusus</h3>
                   <p className="mt-1 text-sm text-muted">
-                    Obat ini membutuhkan resep dokter yang valid. Upload foto resep dulu, ajukan ke apoteker atau admin, lalu tunggu verifikasi sebelum bisa masuk keranjang dan lanjut checkout. Resep yang sudah dipakai hanya berlaku untuk satu transaksi.
+                    Obat ini membutuhkan resep dokter yang valid. Upload foto resep dulu, ajukan ke apoteker atau admin, lalu tunggu verifikasi sebelum lanjut ke detail pesanan dan pembayaran. Setiap pengajuan resep akan membuat aktivitas pesanan baru dan bisa dilakukan lagi pada pembelian berikutnya.
                   </p>
                 </div>
               </div>
-              {prescriptionFlow ? (
-                <Link to={`/pasien/prescriptions/upload?medicine_id=${product.id}`} className="flex w-full items-center justify-center gap-3 rounded-lg border-2 border-dashed border-primary py-5 font-extrabold text-primary transition hover:bg-primary hover:text-white">
-                  <FiUpload /> Upload Resep Dokter
-                </Link>
-              ) : (
-                <div className="rounded-xl bg-secondary-soft p-4 text-sm font-semibold text-secondary">Resep sudah diverifikasi. Kamu bisa masukkan obat ini ke keranjang dan lanjut checkout.</div>
-              )}
+              <Link to={`/pasien/prescriptions/upload?medicine_id=${product.id}`} className="flex w-full items-center justify-center gap-3 rounded-lg border-2 border-dashed border-primary py-5 font-extrabold text-primary transition hover:bg-primary hover:text-white">
+                <FiUpload /> Upload Resep Dokter
+              </Link>
             </div>
           )}
 
@@ -290,36 +233,102 @@ export function UploadPrescription() {
   const navigate = useNavigate();
   const [form, setForm] = useState({ order_id: searchParams.get("order_id") || "", medicine_id: searchParams.get("medicine_id") || "", file: null, doctor_name: "", prescription_number: "", notes: "" });
   const [submitting, setSubmitting] = useState(false);
-  const submit = async () => {
+  const [submitted, setSubmitted] = useState(null);
+  const [medicine, setMedicine] = useState(null);
+
+  useEffect(() => {
+    const medicineId = searchParams.get("medicine_id");
+    if (!medicineId) return;
+    medicineService.detail(medicineId)
+      .then((data) => setMedicine(data))
+      .catch(() => setMedicine(null));
+  }, [searchParams]);
+
+  const submit = async (event) => {
+    event?.preventDefault?.();
     if (!form.file || !form.doctor_name.trim() || !form.prescription_number.trim()) return Toast.warning("Gambar resep, nama dokter, dan nomor resep wajib diisi");
     setSubmitting(true);
     try {
       let orderId = form.order_id;
       if (!orderId) {
         const draft = await prescriptionService.request();
-        orderId = draft.id;
+        orderId = draft?.id || draft?.order_id || "";
       }
-      await prescriptionService.upload({ ...form, order_id: orderId });
+      const uploaded = await prescriptionService.upload({ ...form, order_id: orderId });
+      const nextOrderId = uploaded?.order_id || orderId;
+      const nextOrderNumber = uploaded?.order_number || uploaded?.order?.order_number || nextOrderId;
+      if (!nextOrderId) {
+        Toast.warning("Resep berhasil diupload, tetapi ID pesanan tidak ditemukan");
+        navigate("/pasien/orders", { replace: true });
+        return;
+      }
       Toast.success("Resep berhasil diupload");
-      navigate(`/pasien/checkout/success/${orderId}`);
+      setSubmitted({
+        orderId: nextOrderId,
+        orderNumber: nextOrderNumber,
+        prescriptionNumber: uploaded?.prescription_number || form.prescription_number,
+        uploadedAt: uploaded?.uploaded_at || new Date().toISOString()
+      });
     } catch (error) {
       Toast.error(error?.response?.data?.detail || error?.message || "Resep gagal diupload");
     } finally {
       setSubmitting(false);
     }
   };
+  if (submitted) {
+    return (
+      <div className="mx-auto max-w-2xl">
+        <section className="glass-card p-8 text-center md:p-10">
+          <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-secondary-soft text-secondary">
+            <FiCheckCircle size={42} />
+          </div>
+          <h1 className="mt-6 text-3xl font-extrabold text-primary">Ajukan Resep Berhasil</h1>
+          <p className="mt-2 text-muted">
+            Resep untuk pesanan <b>{submitted.orderNumber}</b> sudah dikirim ke apoteker/admin dan masuk ke alur verifikasi.
+          </p>
+          <div className="mx-auto mt-8 grid max-w-xl gap-3 rounded-2xl bg-surface-low p-5 text-left sm:grid-cols-2">
+            <div>
+              <p className="text-xs font-bold uppercase text-muted">Nomor Pesanan</p>
+              <p className="mt-1 text-xl font-extrabold text-primary">{submitted.orderNumber}</p>
+            </div>
+            <div>
+              <p className="text-xs font-bold uppercase text-muted">Nomor Resep</p>
+              <p className="mt-1 text-xl font-extrabold text-primary">{submitted.prescriptionNumber}</p>
+            </div>
+          </div>
+          <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+            <Link className="btn-primary" to="/pasien/orders">
+              Lihat Status Pesanan Saya
+            </Link>
+            <Link className="btn-secondary" to={`/pasien/orders/${submitted.orderId}`}>
+              Lihat Detail Pesanan
+            </Link>
+          </div>
+        </section>
+      </div>
+    );
+  }
   return (
     <>
-      <PageHeader title="Upload Resep" subtitle="Upload foto resep dulu, lalu kirim untuk verifikasi apoteker atau admin. Satu resep hanya dipakai untuk satu transaksi." />
-      <div className="glass-card max-w-2xl space-y-4 p-6">
+      <PageHeader
+        title="Upload Resep"
+        subtitle="Upload foto resep dulu, lalu kirim untuk verifikasi apoteker atau admin. Setiap pengajuan resep akan tercatat sebagai aktivitas pesanan baru."
+        action={medicine ? <Link className="btn-secondary" to={`/pasien/products/${medicine.id}`}>Kembali ke Obat Terkait</Link> : null}
+      />
+      <form className="glass-card max-w-2xl space-y-4 p-6" onSubmit={submit}>
         <input className="field" placeholder="Order ID" value={form.order_id} readOnly={Boolean(searchParams.get("order_id"))} onChange={(e) => setForm({ ...form, order_id: e.target.value })} />
         <input className="field" placeholder="ID obat (opsional)" value={form.medicine_id} readOnly={Boolean(searchParams.get("medicine_id"))} onChange={(e) => setForm({ ...form, medicine_id: e.target.value })} />
         <UploadPreview label="Foto resep dokter" onChange={(file) => setForm({ ...form, file })} />
         <input className="field" placeholder="Nama dokter" value={form.doctor_name} onChange={(e) => setForm({ ...form, doctor_name: e.target.value })} />
         <input className="field" placeholder="Nomor resep" value={form.prescription_number} onChange={(e) => setForm({ ...form, prescription_number: e.target.value })} />
         <textarea className="field" rows="3" placeholder="Catatan" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
-        <button className="btn-primary mt-6" onClick={submit} disabled={submitting}>{submitting ? "Mengirim..." : "Kirim Resep"}</button>
-      </div>
+        {medicine?.id && (
+          <Link className="btn-secondary w-full" to={`/pasien/products/${medicine.id}`}>
+            Kembali ke {medicine.name}
+          </Link>
+        )}
+        <button type="submit" className="btn-primary mt-6" disabled={submitting}>{submitting ? "Mengirim..." : "Kirim Resep"}</button>
+      </form>
     </>
   );
 }

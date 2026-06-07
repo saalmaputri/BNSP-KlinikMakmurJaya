@@ -1,3 +1,4 @@
+from datetime import date
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -80,6 +81,34 @@ class StockService:
             )
         )
         return batch
+
+    def discard_batch(self, batch_id: UUID, user_id: UUID | None = None) -> MedicineBatch:
+        batch = self.repo.get(batch_id)
+        if not batch or batch.deleted_at is not None:
+            raise NotFoundException("Batch stok tidak ditemukan")
+        if batch.expired_date > date.today():
+            raise AppException("Batch belum kadaluarsa", "BATCH_NOT_EXPIRED")
+        before = batch.available_quantity
+        if before > 0:
+            batch.available_quantity = 0
+            batch.status = "EXPIRED"
+            self.repo.add_movement(
+                StockMovement(
+                    medicine_id=batch.medicine_id,
+                    medicine_batch_id=batch.id,
+                    movement_type="OUT",
+                    quantity=-before,
+                    before_quantity=before,
+                    after_quantity=0,
+                    reference_type="BATCH",
+                    reference_id=batch.id,
+                    notes="Batch expired dibuang",
+                    created_by=user_id,
+                )
+            )
+        else:
+            batch.status = "EXPIRED"
+        return self.repo.delete_soft(batch)
 
     def critical(self):
         return self.repo.critical_stocks()

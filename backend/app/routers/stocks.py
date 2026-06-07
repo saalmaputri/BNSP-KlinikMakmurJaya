@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends
+from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import require_roles
@@ -30,6 +31,13 @@ def list_batches(db: Session = Depends(get_db), user: User = Depends(require_rol
 @router.post("/adjustment")
 def adjustment(payload: StockAdjustmentRequest, db: Session = Depends(get_db), user: User = Depends(require_roles("ADMIN", "APOTEKER"))):
     batch = StockService(db).adjust(payload, user.id)
+    db.commit()
+    return batch
+
+
+@router.post("/batches/{batch_id}/discard")
+def discard_batch(batch_id: UUID, db: Session = Depends(get_db), user: User = Depends(require_roles("ADMIN", "APOTEKER"))):
+    batch = StockService(db).discard_batch(batch_id, user.id)
     db.commit()
     return batch
 
