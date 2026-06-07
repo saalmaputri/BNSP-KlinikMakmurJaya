@@ -181,15 +181,22 @@ npm start
 
 ## Akun Dummy
 
-Jika seeder dijalankan, akun contoh default menggunakan password:
+Jika seeder dijalankan, akun contoh default memakai password yang sama:
 
 ```text
 Password123
 ```
 
-Role contoh:
+Daftar akun dummy:
 
-- Admin
-- Apoteker
-- Kasir
-- Pasien
+| Role | Email | Password |
+| --- | --- | --- |
+| Admin | `admin@klinikmakmurjaya.com` | `Password123` |
+| Apoteker | `apoteker@klinikmakmurjaya.com` | `Password123` |
+| Kasir | `kasir@klinikmakmurjaya.com` | `Password123` |
+| Pasien | `budi@klinikmakmurjaya.com` | `Password123` |
+
+Catatan:
+
+- Seeder akan membuat atau menyesuaikan akun di atas saat `python -m app.utils.seeder` dijalankan.
+- Semua akun dummy memakai password yang sama agar mudah untuk testing lokal.
