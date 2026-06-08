@@ -8,6 +8,8 @@ from app.schemas.common import ORMModel
 
 class PrescriptionUploadRequest(BaseModel):
     order_id: UUID
+    medicine_id: UUID | None = None
+    quantity: int = Field(default=1, ge=1)
     doctor_name: str = Field(min_length=2, max_length=150)
     prescription_number: str = Field(min_length=2, max_length=100)
     file_url: str
@@ -20,6 +22,13 @@ class PrescriptionUploadRequest(BaseModel):
         if not value:
             raise ValueError("Field wajib diisi")
         return value
+
+    @field_validator("quantity", mode="before")
+    @classmethod
+    def normalize_quantity(cls, value):
+        if value in (None, ""):
+            return 1
+        return int(value)
 
 
 class PrescriptionVerifyRequest(BaseModel):

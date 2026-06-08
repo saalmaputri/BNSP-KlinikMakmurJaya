@@ -10,7 +10,8 @@ import {
   FiHelpCircle,
   FiHome,
   FiShoppingBag,
-  FiSettings
+  FiSettings,
+  FiUsers
 } from "react-icons/fi";
 
 export const roleDashboards = {
@@ -30,6 +31,7 @@ export const roleRoutes = {
 export const roleMenus = {
   admin: [
     { label: "Dashboard", path: "/admin/dashboard", icon: FiHome, design: "dashboard_utama_admin_modern" },
+    { label: "User", path: "/admin/users", icon: FiUsers, design: "daftar_user_admin" },
     { label: "Manajemen Obat", path: "/admin/medicines", icon: FiBox, design: "manajemen_obat_stok" },
     { label: "Supplier", path: "/admin/suppliers", icon: FiDatabase, design: "manajemen_supplier_obat" },
     { label: "Transaksi", path: "/admin/transactions", icon: FiClipboard, design: "manajemen_transaksi_penjualan" },

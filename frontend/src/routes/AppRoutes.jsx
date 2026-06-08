@@ -4,7 +4,7 @@ import { Login, Register, VerifyEmail } from "../pages/AuthPages";
 import DashboardPage from "../pages/DashboardPage";
 import { CatalogPage, DetailObat, UploadPrescription } from "../pages/CatalogPages";
 import { CartPage, CheckoutPage, CheckoutSuccessPage, OrderDetail, OrdersPage, PaymentPage } from "../pages/CartCheckoutOrders";
-import { MedicinesManagement, PaymentVerificationManagement, PrescriptionsManagement, SimpleManagement, StockManagement, SupplierManagement, TransactionsManagement } from "../pages/ManagementPages";
+import { MedicinesManagement, PaymentVerificationManagement, PrescriptionsManagement, SimpleManagement, StockManagement, SupplierManagement, TransactionsManagement, UserManagement } from "../pages/ManagementPages";
 import PrescriptionVerify from "../pages/PrescriptionVerify";
 import { AuditLogPage, ErrorLogDashboard, HelpPage, ImportPage, MonitoringPage, SalesReport } from "../pages/LogsReportsHelp";
 import ProtectedRoute from "./ProtectedRoute";
@@ -28,6 +28,7 @@ export default function AppRoutes() {
         <Route element={<ProtectedRoute />}>
           <Route element={<DashboardLayout />}>
             <Route path="/admin/dashboard" element={<DashboardPage roleOverride="admin" />} />
+            <Route path="/admin/users" element={<UserManagement />} />
             <Route path="/admin/medicines" element={<MedicinesManagement />} />
             <Route path="/admin/medicines/:id" element={<DetailObat catalogPath="/admin/medicines" showBatchDetails showPurchaseActions={false} />} />
             <Route path="/admin/medicines/categories" element={<SimpleManagement type="categories" title="Manajemen Kategori" subtitle="Kelola kategori produk obat." />} />

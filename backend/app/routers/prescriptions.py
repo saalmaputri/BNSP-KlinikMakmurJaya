@@ -8,23 +8,23 @@ from app.core.exceptions import NotFoundException
 from app.database import get_db
 from app.models.entities import User
 from app.repositories.order_repository import OrderRepository
-from app.schemas.order import OrderResponse
 from app.schemas.prescription import PrescriptionResponse, PrescriptionUploadRequest, PrescriptionVerifyRequest
 from app.services.prescription_service import PrescriptionService
 from app.utils.file_upload import save_uploaded_image
+from app.utils.order_serialization import serialize_order, serialize_prescription
 
 router = APIRouter(prefix="/prescriptions", tags=["Prescriptions"])
 
 
-def prescription_response(prescription) -> PrescriptionResponse:
-    return PrescriptionResponse.model_validate(prescription).model_copy(
-        update={"patient_name": prescription.patient.full_name if prescription.patient else None}
-    )
+def prescription_response(prescription) -> dict:
+    return serialize_prescription(prescription)
 
 
-@router.post("/upload", response_model=PrescriptionResponse)
+@router.post("/upload")
 async def upload(
     order_id: str | None = Form(None),
+    medicine_id: str | None = Form(None),
+    quantity: int = Form(1),
     prescription_image: UploadFile = File(...),
     doctor_name: str = Form(...),
     prescription_number: str = Form(...),
@@ -43,8 +43,16 @@ async def upload(
     if not parsed_order_id:
         draft_order = request_service.request(user.id)
         parsed_order_id = draft_order.id
+    parsed_medicine_id: UUID | None = None
+    if medicine_id:
+        try:
+            parsed_medicine_id = UUID(str(medicine_id))
+        except (TypeError, ValueError):
+            parsed_medicine_id = None
     payload = PrescriptionUploadRequest(
         order_id=parsed_order_id,
+        medicine_id=parsed_medicine_id,
+        quantity=quantity,
         doctor_name=doctor_name,
         prescription_number=prescription_number,
         file_url=file_url,
@@ -56,7 +64,7 @@ async def upload(
     return prescription_response(prescription)
 
 
-@router.post("/request", response_model=OrderResponse)
+@router.post("/request")
 def request(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("PASIEN")),
@@ -64,25 +72,25 @@ def request(
     order = PrescriptionService(db).request(user.id)
     db.commit()
     db.refresh(order)
-    return OrderResponse.model_validate(order).model_copy(update={"items": []})
+    return {**serialize_order(order), "items": []}
 
 
-@router.get("/my", response_model=list[PrescriptionResponse])
+@router.get("/my")
 def my_prescriptions(db: Session = Depends(get_db), user: User = Depends(require_roles("PASIEN"))):
     return [prescription_response(item) for item in PrescriptionService(db).mine(user.id)]
 
 
-@router.get("/pending", response_model=list[PrescriptionResponse])
+@router.get("/pending")
 def pending(db: Session = Depends(get_db), user: User = Depends(require_roles("ADMIN", "APOTEKER"))):
     return [prescription_response(item) for item in PrescriptionService(db).pending()]
 
 
-@router.get("/history", response_model=list[PrescriptionResponse])
+@router.get("/history")
 def history(db: Session = Depends(get_db), user: User = Depends(require_roles("ADMIN", "APOTEKER"))):
     return [prescription_response(item) for item in PrescriptionService(db).history()]
 
 
-@router.get("/by-order/{order_id}", response_model=PrescriptionResponse)
+@router.get("/by-order/{order_id}")
 def by_order(order_id: UUID, db: Session = Depends(get_db), user: User = Depends(require_roles("ADMIN", "APOTEKER", "PASIEN"))):
     order = OrderRepository(db).get(order_id)
     if not order:
@@ -99,11 +107,13 @@ def by_order(order_id: UUID, db: Session = Depends(get_db), user: User = Depends
 def approve(prescription_id: UUID, payload: PrescriptionVerifyRequest, db: Session = Depends(get_db), user: User = Depends(require_roles("ADMIN", "APOTEKER"))):
     prescription = PrescriptionService(db).approve(prescription_id, user.id, payload.notes)
     db.commit()
-    return prescription
+    db.refresh(prescription)
+    return prescription_response(prescription)
 
 
 @router.post("/{prescription_id}/reject")
 def reject(prescription_id: UUID, payload: PrescriptionVerifyRequest, db: Session = Depends(get_db), user: User = Depends(require_roles("ADMIN", "APOTEKER"))):
     prescription = PrescriptionService(db).reject(prescription_id, user.id, payload.notes)
     db.commit()
-    return prescription
+    db.refresh(prescription)
+    return prescription_response(prescription)

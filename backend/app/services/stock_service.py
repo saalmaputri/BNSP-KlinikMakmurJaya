@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import AppException, NotFoundException
-from app.models.entities import MedicineBatch, StockMovement
+from app.models.entities import MedicineBatch, Order, StockMovement
 from app.repositories.medicine_repository import StockRepository
 from app.schemas.medicine import BatchCreate, StockAdjustmentRequest
 
@@ -44,6 +44,30 @@ class FIFOStockService:
         if remaining > 0:
             raise AppException("Stok obat tidak mencukupi", "INSUFFICIENT_STOCK")
         return selected
+
+    def restore_order_stock(self, order: Order, created_by: UUID | None = None, notes: str = "Pembayaran melewati batas waktu") -> None:
+        for item in order.items:
+            batch = getattr(item, "batch", None)
+            if not batch:
+                continue
+            before = batch.available_quantity
+            batch.available_quantity = before + int(item.quantity or 0)
+            if batch.expired_date >= date.today() and batch.available_quantity > 0:
+                batch.status = "AVAILABLE"
+            self.repo.add_movement(
+                StockMovement(
+                    medicine_id=item.medicine_id,
+                    medicine_batch_id=batch.id,
+                    movement_type="IN",
+                    quantity=int(item.quantity or 0),
+                    before_quantity=before,
+                    after_quantity=batch.available_quantity,
+                    reference_type="ORDER",
+                    reference_id=order.id,
+                    notes=notes,
+                    created_by=created_by,
+                )
+            )
 
 
 class StockService:

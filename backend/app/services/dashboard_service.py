@@ -2,6 +2,7 @@ from datetime import datetime, time, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
+from app.utils.order_serialization import serialize_order, serialize_prescription
 from app.repositories.order_repository import OrderRepository
 from app.repositories.prescription_repository import PrescriptionRepository
 from app.services.stock_service import StockService
@@ -24,7 +25,7 @@ class DashboardService:
             "critical_stock": len(self.stocks.critical()),
             "pending_prescriptions": len(self.prescriptions.list_pending()),
             "sales_chart": self._weekly_sales(now),
-            "latest_orders": self.orders.list_latest(5),
+            "latest_orders": [serialize_order(order) for order in self.orders.list_latest(5)],
         }
 
     def pharmacist(self) -> dict:
@@ -33,7 +34,7 @@ class DashboardService:
             "expired_soon": len(self.stocks.expired_soon(90)),
             "critical_stock": len(self.stocks.critical()),
             "total_medicines": len(self.stocks.list()),
-            "pending_items": self.prescriptions.list_pending()[:5],
+            "pending_items": [serialize_prescription(item) for item in self.prescriptions.list_pending()[:5]],
         }
 
     def cashier(self) -> dict:
@@ -45,7 +46,7 @@ class DashboardService:
             "sales_today": sales["revenue"],
             "transactions_today": sales["orders"],
             "completed_today": self.orders.count_completed(start, now, "OFFLINE"),
-            "latest_transactions": self.orders.list_latest(5, "OFFLINE"),
+            "latest_transactions": [serialize_order(order) for order in self.orders.list_latest(5, "OFFLINE")],
         }
 
     def customer(self, user_id) -> dict:
@@ -53,8 +54,8 @@ class DashboardService:
         summary = self.orders.patient_summary(user_id)
         return {
             **summary,
-            "orders": orders,
-            "latest_order": orders[0] if orders else None,
+            "orders": [serialize_order(order) for order in orders],
+            "latest_order": serialize_order(orders[0]) if orders else None,
         }
 
     def _weekly_sales(self, now: datetime) -> list[dict]:

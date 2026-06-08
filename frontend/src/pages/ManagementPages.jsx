@@ -16,6 +16,7 @@ import { categoryService } from "../services/categoryService";
 import { customerService } from "../services/customerService";
 import { paymentService } from "../services/paymentService";
 import { supplierService } from "../services/supplierService";
+import { userService } from "../services/userService";
 import { normalizeList, rupiah } from "../utils/storage";
 import PageHeader from "./PageHeader";
 
@@ -505,6 +506,9 @@ export function TransactionsManagement({ title = "Manajemen Transaksi", subtitle
   const [customerName, setCustomerName] = useState("Pelanggan Walk-in");
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [checkingOut, setCheckingOut] = useState(false);
+  const [receiptOpen, setReceiptOpen] = useState(false);
+  const [receiptOrder, setReceiptOrder] = useState(null);
+  const [receiptItems, setReceiptItems] = useState([]);
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -607,21 +611,32 @@ export function TransactionsManagement({ title = "Manajemen Transaksi", subtitle
   const updateCashierQty = (medicineId, delta) => {
     setCartItems((current) => current
       .map((item) => String(item.medicine_id) === String(medicineId)
-        ? { ...item, quantity: Math.min(item.current_stock, Math.max(1, item.quantity + delta)) }
+        ? { ...item, quantity: Math.min(item.current_stock, Math.max(0, item.quantity + delta)) }
         : item)
       .filter((item) => item.quantity > 0));
+  };
+  const removeCashierItem = (medicineId) => {
+    setCartItems((current) => current.filter((item) => String(item.medicine_id) !== String(medicineId)));
   };
   const cashierTotal = cartItems.reduce((sum, item) => sum + Number(item.medicine?.selling_price || 0) * item.quantity, 0);
   const checkoutCashier = async () => {
     if (!cartItems.length) return Toast.warning("Keranjang kasir masih kosong");
     setCheckingOut(true);
     try {
+      const snapshotItems = cartItems.map((item) => ({ ...item }));
       const order = await orderService.cashierCheckout({
         items: cartItems.map((item) => ({ medicine_id: item.medicine_id, quantity: item.quantity })),
         payment_method: paymentMethod,
         customer_name: customerName.trim() || "Pelanggan Walk-in"
       });
       setCartItems([]);
+      setReceiptOrder({
+        ...order,
+        payment_method: paymentMethod,
+        customer_name_snapshot: customerName.trim() || "Pelanggan Walk-in"
+      });
+      setReceiptItems(snapshotItems);
+      setReceiptOpen(true);
       const data = await orderService.transactions();
       setRows(normalizeList(data));
       Toast.success(`Checkout ${order.order_number || ""} berhasil`);
@@ -875,10 +890,10 @@ export function TransactionsManagement({ title = "Manajemen Transaksi", subtitle
                 <div className="mt-3 flex items-center justify-between">
                   <p className="text-sm font-bold text-muted">{rupiah(Number(item.medicine?.selling_price || 0) * item.quantity)}</p>
                   <div className="flex items-center gap-2">
-                    <button className="icon-btn h-8 w-8" onClick={() => updateCashierQty(item.medicine_id, -1)}><FiMinus /></button>
+                    <button type="button" className="icon-btn h-8 w-8" onClick={() => updateCashierQty(item.medicine_id, -1)}><FiMinus /></button>
                     <span className="w-6 text-center font-extrabold">{item.quantity}</span>
-                    <button className="icon-btn h-8 w-8" onClick={() => updateCashierQty(item.medicine_id, 1)}><FiPlus /></button>
-                    <button className="icon-btn h-8 w-8 text-danger" onClick={() => updateCashierQty(item.medicine_id, -999)}><FiTrash2 /></button>
+                    <button type="button" className="icon-btn h-8 w-8" onClick={() => updateCashierQty(item.medicine_id, 1)}><FiPlus /></button>
+                    <button type="button" className="icon-btn h-8 w-8 text-danger" onClick={() => removeCashierItem(item.medicine_id)}><FiTrash2 /></button>
                   </div>
                 </div>
               </div>
@@ -886,11 +901,63 @@ export function TransactionsManagement({ title = "Manajemen Transaksi", subtitle
             {!cartItems.length && <p className="text-sm text-muted">Belum ada item di keranjang.</p>}
           </div>
           <div className="mt-6 flex justify-between text-lg font-extrabold"><span>Total</span><span>{rupiah(cashierTotal)}</span></div>
-          <button className="btn-primary mt-6 w-full" onClick={checkoutCashier} disabled={checkingOut || !cartItems.length}>
+          <button type="button" className="btn-primary mt-6 w-full" onClick={checkoutCashier} disabled={checkingOut || !cartItems.length}>
             {checkingOut ? "Memproses..." : "Checkout Kasir"}
           </button>
         </aside>
       </div>
+      <ModalForm
+        open={receiptOpen}
+        title="Struk Checkout"
+        onClose={() => {
+          setReceiptOpen(false);
+          setReceiptOrder(null);
+          setReceiptItems([]);
+          setCustomerName("Pelanggan Walk-in");
+          setPaymentMethod("CASH");
+        }}
+        footer={
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => {
+              setReceiptOpen(false);
+              setReceiptOrder(null);
+              setReceiptItems([]);
+              setCustomerName("Pelanggan Walk-in");
+              setPaymentMethod("CASH");
+            }}
+          >
+            Kembali ke POS Kasir
+          </button>
+        }
+      >
+        <div className="space-y-5">
+          <div className="rounded-2xl bg-surface-low p-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              <InfoRow label="Nomor Order" value={receiptOrder?.order_number || "-"} />
+              <InfoRow label="Pelanggan" value={receiptOrder?.customer_name_snapshot || customerName || "-"} />
+              <InfoRow label="Metode Bayar" value={receiptOrder?.payment_method || paymentMethod || "-"} />
+              <InfoRow label="Total" value={rupiah(receiptOrder?.total_amount || cashierTotal)} />
+            </div>
+          </div>
+          <div className="rounded-2xl border border-outline/60 bg-white p-4">
+            <p className="text-sm font-bold text-primary">Item yang dibayar</p>
+            <div className="mt-3 space-y-3">
+              {receiptItems.map((item) => (
+                <div key={item.medicine_id} className="flex items-center justify-between rounded-2xl bg-surface-low px-4 py-3">
+                  <div>
+                    <p className="font-bold text-primary">{item.medicine?.name || item.medicine_id}</p>
+                    <p className="text-xs text-muted">{item.quantity} x {rupiah(item.medicine?.selling_price || 0)}</p>
+                  </div>
+                  <p className="font-bold text-primary">{rupiah(Number(item.medicine?.selling_price || 0) * item.quantity)}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <p className="text-sm text-muted">Struk sudah dibuat. Klik kembali ke POS untuk melayani transaksi berikutnya.</p>
+        </div>
+      </ModalForm>
     </>
   );
 }
@@ -1138,6 +1205,7 @@ export function StockManagement({ mode = "all" }) {
   const [query, setQuery] = useState("");
   const [batchOpen, setBatchOpen] = useState(false);
   const [showManufactureDate, setShowManufactureDate] = useState(false);
+  const [batchNumberHint, setBatchNumberHint] = useState("");
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [discardTarget, setDiscardTarget] = useState(null);
   const [discarding, setDiscarding] = useState(false);
@@ -1146,6 +1214,12 @@ export function StockManagement({ mode = "all" }) {
   useEffect(() => {
     loadStocks();
   }, [mode]);
+  const openBatchModal = () => {
+    setBatchForm({ medicine_id: "", supplier_id: "", batch_number: "", manufacture_date: "", expired_date: "", received_date: new Date().toISOString().slice(0, 10), initial_quantity: "", unit_cost: "" });
+    setBatchNumberHint("");
+    setShowManufactureDate(false);
+    setBatchOpen(true);
+  };
   const loadStocks = () => {
     const loader = mode === "critical" ? stockService.critical : mode === "expired" ? stockService.batches : stockService.list;
     return loader().then((data) => setRows(normalizeList(data))).catch((error) => Toast.error(error?.response?.data?.message || "Gagal memuat stok"));
@@ -1155,9 +1229,48 @@ export function StockManagement({ mode = "all" }) {
     if (Number.isFinite(daysRemaining) && daysRemaining <= 0) return true;
     return String(row?.status || "").trim().toLowerCase() === "expired";
   };
+  const deriveNextBatchNumber = (batchNumbers = []) => {
+    const normalized = batchNumbers
+      .map((value) => String(value || "").trim())
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
+    const lastBatch = normalized.at(-1);
+    if (!lastBatch) return "BTH-001";
+    const match = lastBatch.match(/^(.*?)(\d+)$/);
+    if (!match) return `${lastBatch}-001`;
+    const prefix = match[1];
+    const digits = match[2];
+    const nextNumber = String(Number(digits) + 1).padStart(digits.length, "0");
+    return `${prefix}${nextNumber}`;
+  };
+  useEffect(() => {
+    if (!batchForm.medicine_id) {
+      setBatchNumberHint("");
+      return;
+    }
+    medicineService.batches(batchForm.medicine_id)
+      .then((data) => {
+        const batches = normalizeList(data);
+        const nextBatchNumber = deriveNextBatchNumber(batches.map((item) => item.batch_number));
+        setBatchNumberHint(nextBatchNumber);
+        setBatchForm((current) => ({
+          ...current,
+          batch_number: current.batch_number?.trim() ? current.batch_number : nextBatchNumber
+        }));
+      })
+      .catch(() => {
+        const fallback = "BTH-001";
+        setBatchNumberHint(fallback);
+        setBatchForm((current) => ({
+          ...current,
+          batch_number: current.batch_number?.trim() ? current.batch_number : fallback
+        }));
+      });
+  }, [batchForm.medicine_id]);
   const createBatch = async () => {
-    if (!batchForm.medicine_id || !batchForm.batch_number.trim() || !batchForm.expired_date || !batchForm.received_date || !batchForm.initial_quantity) {
-      Toast.warning("Obat, nomor batch, tanggal masuk gudang, tanggal kadaluarsa, dan jumlah awal wajib diisi");
+    const effectiveBatchNumber = batchForm.batch_number || batchNumberHint;
+    if (!batchForm.medicine_id || !effectiveBatchNumber || !batchForm.expired_date || !batchForm.received_date || !batchForm.initial_quantity) {
+      Toast.warning("Obat, tanggal masuk gudang, tanggal kadaluarsa, dan jumlah awal wajib diisi");
       return;
     }
     if (batchForm.expired_date < batchForm.received_date) {
@@ -1167,6 +1280,7 @@ export function StockManagement({ mode = "all" }) {
     try {
       await stockService.addBatch({
         ...batchForm,
+        batch_number: effectiveBatchNumber,
         supplier_id: batchForm.supplier_id || null,
         manufacture_date: batchForm.manufacture_date || null,
         initial_quantity: Number(batchForm.initial_quantity || 0),
@@ -1249,7 +1363,7 @@ export function StockManagement({ mode = "all" }) {
       ];
   return (
     <>
-      <PageHeader title={title} subtitle={subtitle} action={mode === "all" && <div className="flex flex-wrap gap-3"><button className="btn-secondary" onClick={() => setAdjustOpen(true)}>Adjustment</button><button className="btn-primary" onClick={() => setBatchOpen(true)}><FiPlus /> Tambah Batch</button></div>} />
+      <PageHeader title={title} subtitle={subtitle} action={mode === "all" && <div className="flex flex-wrap gap-3"><button type="button" className="btn-secondary" onClick={() => setAdjustOpen(true)}>Adjustment</button><button type="button" className="btn-primary" onClick={openBatchModal}><FiPlus /> Tambah Batch</button></div>} />
       <div className="mb-6">
         <SearchBar
           value={query}
@@ -1285,14 +1399,15 @@ export function StockManagement({ mode = "all" }) {
           <div className="grid gap-4 md:grid-cols-2">
             <label className="block text-sm font-bold text-muted">
               Obat *
-              <select className="field mt-2" value={batchForm.medicine_id} onChange={(e) => setBatchForm({ ...batchForm, medicine_id: e.target.value })}>
+              <select className="field mt-2" value={batchForm.medicine_id} onChange={(e) => setBatchForm({ ...batchForm, medicine_id: e.target.value, batch_number: "" })}>
                 <option value="">Pilih obat</option>
                 {rows.map((item) => <option key={item.id || item.medicine_id} value={item.id || item.medicine_id}>{item.name}</option>)}
               </select>
             </label>
             <label className="block text-sm font-bold text-muted">
               Nomor batch *
-              <input className="field mt-2" placeholder="Contoh: BTH-001" value={batchForm.batch_number} onChange={(e) => setBatchForm({ ...batchForm, batch_number: e.target.value })} />
+              <input className="field mt-2 bg-surface-high font-semibold text-muted" placeholder="Otomatis mengikuti batch terakhir" value={batchForm.batch_number || batchNumberHint} readOnly />
+              <span className="mt-1 block text-xs font-medium text-muted">Batch akan dibuat otomatis, misalnya berikutnya menjadi {batchNumberHint || "BTH-001"}.</span>
             </label>
             {showManufactureDate && (
               <label className="block text-sm font-bold text-muted">
@@ -1341,6 +1456,77 @@ export function StockManagement({ mode = "all" }) {
         onCancel={() => setDiscardTarget(null)}
         onConfirm={confirmDiscard}
       />
+    </>
+  );
+}
+
+export function UserManagement() {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [query, setQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState("ALL");
+
+  const load = () => {
+    setLoading(true);
+    return userService.list()
+      .then((data) => setRows(normalizeList(data)))
+      .catch((error) => Toast.error(error?.response?.data?.detail || error?.response?.data?.message || "Gagal memuat daftar user"))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const filteredRows = rows.filter((row) => {
+    const matchesRole = roleFilter === "ALL" || String(row.role_code || "").toUpperCase() === roleFilter;
+    if (!matchesRole) return false;
+    if (!query.trim()) return true;
+    const needle = query.toLowerCase();
+    return [
+      row.full_name,
+      row.email,
+      row.phone,
+      row.role_code,
+      row.status,
+      row.gender
+    ].some((value) => String(value || "").toLowerCase().includes(needle));
+  });
+
+  const columns = [
+    { key: "full_name", label: "Nama", render: (row) => <div><p className="font-extrabold text-primary">{row.full_name || "-"}</p><p className="text-xs text-muted">ID: {row.id || "-"}</p></div> },
+    { key: "email", label: "Email" },
+    { key: "phone", label: "Telepon", render: (row) => row.phone || "-" },
+    { key: "role_code", label: "Role", render: (row) => row.role_code || "-" },
+    { key: "status", label: "Status", type: "badge" },
+    { key: "gender", label: "Gender", render: (row) => row.gender || "-" }
+  ];
+
+  return (
+    <>
+      <PageHeader
+        title="Daftar User"
+        subtitle="Lihat data pengguna terdaftar berdasarkan role, status, dan kontak."
+        action={<button type="button" className="btn-secondary" onClick={load} disabled={loading}><FiRefreshCw /> Refresh</button>}
+      />
+      <div className="mb-6 grid gap-3 lg:grid-cols-[1fr_auto]">
+        <SearchBar
+          value={query}
+          onChange={setQuery}
+          placeholder="Cari nama, email, telepon, atau role..."
+          suggestions={rows.map((item) => item.full_name)}
+          onSelect={setQuery}
+        />
+        <select className="field h-12" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
+          <option value="ALL">Semua Role</option>
+          <option value="ADMIN">Admin</option>
+          <option value="APOTEKER">Apoteker</option>
+          <option value="KASIR">Kasir</option>
+          <option value="PASIEN">Pasien</option>
+        </select>
+      </div>
+      {loading && <p className="mb-4 text-sm font-bold text-muted">Memuat daftar user...</p>}
+      <DataTable rows={filteredRows} columns={columns} />
     </>
   );
 }

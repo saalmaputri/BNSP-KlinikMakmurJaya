@@ -19,6 +19,8 @@ export const prescriptionService = {
   upload: (payload) => {
     const formData = new FormData();
     formData.append("order_id", payload.order_id);
+    if (payload.medicine_id) formData.append("medicine_id", payload.medicine_id);
+    if (payload.quantity) formData.append("quantity", payload.quantity);
     formData.append("prescription_image", payload.file);
     if (payload.doctor_name) formData.append("doctor_name", payload.doctor_name);
     if (payload.prescription_number) formData.append("prescription_number", payload.prescription_number);

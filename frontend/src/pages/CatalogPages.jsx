@@ -110,17 +110,27 @@ export function DetailObat({ cartPath = "/pasien/cart", catalogPath = "/pasien/c
   }, [id]);
   if (!product) return null;
 
+  const currentStock = Number(product.current_stock || 0);
+  const outOfStock = currentStock <= 0;
   const addToCart = async () => {
     if (product.requires_prescription) return;
+    if (outOfStock) {
+      Toast.warning("Stok obat habis");
+      return;
+    }
     await cartService.add({ medicine_id: product.id, quantity: 1 });
     Toast.success("Produk ditambahkan ke keranjang");
   };
   const buyNow = async () => {
+    if (outOfStock) {
+      Toast.warning("Stok obat habis");
+      return;
+    }
     await addToCart();
     navigate(cartPath);
   };
   const prescriptionFlow = Boolean(product.requires_prescription);
-  const stockReady = Number(product.current_stock || 0) > Number(product.minimum_stock || 0);
+  const stockReady = currentStock > Number(product.minimum_stock || 0);
   const batchColumns = [
     { key: "batch_number", label: "Batch" },
     { key: "available_quantity", label: "Stok Batch", render: (row) => row.available_quantity ?? 0 },
@@ -166,8 +176,8 @@ export function DetailObat({ cartPath = "/pasien/cart", catalogPath = "/pasien/c
           <dl className="mb-10 space-y-4">
             <div className="flex items-center gap-6">
               <dt className="w-24 text-sm font-bold text-muted">Stok:</dt>
-              <dd className={`rounded-lg px-4 py-2 text-sm font-extrabold ${stockReady ? "bg-secondary text-white" : "bg-warning text-white"}`}>
-                {stockReady ? `Tersedia > ${product.current_stock} unit` : `Stok ${product.current_stock} unit`}
+              <dd className={`rounded-lg px-4 py-2 text-sm font-extrabold ${outOfStock ? "bg-danger text-white" : stockReady ? "bg-secondary text-white" : "bg-warning text-white"}`}>
+                {outOfStock ? "Stok habis" : stockReady ? `Tersedia > ${currentStock} unit` : `Stok ${currentStock} unit`}
               </dd>
             </div>
             <div className="flex items-center gap-6"><dt className="w-24 text-sm font-bold text-muted">Kategori:</dt><dd className="font-semibold text-ink">{product.category_name}</dd></div>
@@ -186,15 +196,23 @@ export function DetailObat({ cartPath = "/pasien/cart", catalogPath = "/pasien/c
                   </p>
                 </div>
               </div>
-              <Link to={`/pasien/prescriptions/upload?medicine_id=${product.id}`} className="flex w-full items-center justify-center gap-3 rounded-lg border-2 border-dashed border-primary py-5 font-extrabold text-primary transition hover:bg-primary hover:text-white">
-                <FiUpload /> Upload Resep Dokter
-              </Link>
+              {outOfStock ? (
+                <button type="button" disabled className="flex w-full cursor-not-allowed items-center justify-center gap-3 rounded-lg border-2 border-dashed border-danger py-5 font-extrabold text-danger opacity-70">
+                  <FiUpload /> Stok Habis
+                </button>
+              ) : (
+                <Link to={`/pasien/prescriptions/upload?medicine_id=${product.id}`} className="flex w-full items-center justify-center gap-3 rounded-lg border-2 border-dashed border-primary py-5 font-extrabold text-primary transition hover:bg-primary hover:text-white">
+                  <FiUpload /> Upload Resep Dokter
+                </Link>
+              )}
             </div>
           )}
 
           {showPurchaseActions && (
             <div className="mt-auto grid gap-4 sm:grid-cols-2">
-              {prescriptionFlow ? (
+              {outOfStock ? (
+                <button type="button" disabled className="btn-primary h-16 text-base cursor-not-allowed opacity-70">Stok Habis</button>
+              ) : prescriptionFlow ? (
                 <>
                   <Link to={`/pasien/prescriptions/upload?medicine_id=${product.id}`} className="btn-primary h-16 text-base flex items-center justify-center">Ajukan Resep</Link>
                 </>
@@ -244,7 +262,7 @@ function ProductField({ label, value }) {
 export function UploadPrescription() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ order_id: searchParams.get("order_id") || "", medicine_id: searchParams.get("medicine_id") || "", file: null, doctor_name: "", prescription_number: "", notes: "" });
+  const [form, setForm] = useState({ order_id: searchParams.get("order_id") || "", medicine_id: searchParams.get("medicine_id") || "", quantity: 1, file: null, doctor_name: "", prescription_number: "", notes: "" });
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(null);
   const [medicine, setMedicine] = useState(null);
@@ -268,7 +286,7 @@ export function UploadPrescription() {
         orderId = draft?.id || draft?.order_id || "";
         if (orderId) setForm((current) => ({ ...current, order_id: String(orderId) }));
       }
-      const uploaded = await prescriptionService.upload({ ...form, order_id: String(orderId || "") });
+      const uploaded = await prescriptionService.upload({ ...form, order_id: String(orderId || ""), quantity: Number(form.quantity || 1) });
       const orderDetail = orderId ? await orderService.detail(orderId).catch(() => null) : null;
       const nextOrderId = orderDetail?.id || uploaded?.order_id || orderId;
       const nextOrderNumber = orderDetail?.order_number || uploaded?.order_number || uploaded?.order?.order_number || nextOrderId;
@@ -333,6 +351,18 @@ export function UploadPrescription() {
       <form className="glass-card max-w-2xl space-y-4 p-6" onSubmit={submit}>
         <input className="field" placeholder="Order ID" value={form.order_id} readOnly={Boolean(searchParams.get("order_id"))} onChange={(e) => setForm({ ...form, order_id: e.target.value })} />
         <input className="field" placeholder="ID obat (opsional)" value={form.medicine_id} readOnly={Boolean(searchParams.get("medicine_id"))} onChange={(e) => setForm({ ...form, medicine_id: e.target.value })} />
+        {form.medicine_id && (
+          <label className="block text-sm font-bold text-muted">
+            Jumlah obat
+            <input
+              className="field mt-2"
+              type="number"
+              min="1"
+              value={form.quantity}
+              onChange={(e) => setForm({ ...form, quantity: Math.max(1, Number(e.target.value || 1)) })}
+            />
+          </label>
+        )}
         <UploadPreview label="Foto resep dokter" onChange={(file) => setForm({ ...form, file })} />
         <input className="field" placeholder="Nama dokter" value={form.doctor_name} onChange={(e) => setForm({ ...form, doctor_name: e.target.value })} />
         <input className="field" placeholder="Nomor resep" value={form.prescription_number} onChange={(e) => setForm({ ...form, prescription_number: e.target.value })} />

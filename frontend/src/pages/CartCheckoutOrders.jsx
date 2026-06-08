@@ -38,18 +38,36 @@ const formatDate = (value) => {
   if (Number.isNaN(date.getTime())) return "-";
   return new Intl.DateTimeFormat("id-ID", { dateStyle: "medium" }).format(date);
 };
+const getOrderBadgeStatus = (order = {}, prescription = null, payment = null) => {
+  const status = String(order?.status || "").toUpperCase();
+  const prescriptionStatus = String(prescription?.status || "").toUpperCase();
+  const paymentStatus = String(payment?.status || "").toUpperCase();
+
+  if (["CANCELLED", "EXPIRED"].includes(status) || paymentStatus === "EXPIRED") return "expired";
+  if (status === "COMPLETED") return "selesai";
+  if (["READY_FOR_PICKUP"].includes(status)) return "active";
+  if (["PAID", "PROCESSING"].includes(status)) return "paid";
+  if (status === "PENDING_PAYMENT" || paymentStatus === "PENDING" || paymentStatus === "WAITING_VERIFICATION" || prescriptionStatus === "APPROVED") return "pending";
+  if (status === "PRESCRIPTION_REVIEW" || status === "WAITING_PRESCRIPTION" || ["PENDING", "IN_REVIEW"].includes(prescriptionStatus)) return "waiting";
+  if (prescriptionStatus === "REJECTED") return "rejected";
+  if (prescriptionStatus === "USED") return "selesai";
+  return status.toLowerCase() || "pending";
+};
 const getOrderPhase = (order = {}, prescription = null, payment = null) => {
+  const orderStatus = String(order.status || "").toUpperCase();
   const needsRx = requiresPrescription(order);
   const prescriptionUploaded = Boolean(prescription?.file_url);
   const prescriptionVerified = prescription?.status === "APPROVED";
   const prescriptionRejected = prescription?.status === "REJECTED";
-  const showPrescriptionSteps = needsRx || prescriptionUploaded || prescriptionVerified || prescriptionRejected || ["WAITING_PRESCRIPTION", "PRESCRIPTION_REVIEW"].includes(order.status);
-  const paymentReady = order.status === "PENDING_PAYMENT";
+  const paymentExpired = ["CANCELLED", "EXPIRED"].includes(orderStatus) || String(payment?.status || "").toUpperCase() === "EXPIRED";
+  const showPrescriptionSteps = needsRx || Boolean(prescription?.id) || prescriptionUploaded || prescriptionVerified || prescriptionRejected || ["WAITING_PRESCRIPTION", "PRESCRIPTION_REVIEW"].includes(orderStatus);
+  const prescriptionWorkflowStarted = ["PRESCRIPTION_REVIEW", "PENDING_PAYMENT", "PAID", "PROCESSING", "READY_FOR_PICKUP", "COMPLETED"].includes(orderStatus) || prescriptionUploaded || prescriptionVerified || prescriptionRejected || Boolean(prescription?.id);
+  const paymentReady = orderStatus === "PENDING_PAYMENT";
   const paymentWaiting = payment?.status === "WAITING_VERIFICATION";
   const paymentVerified = payment?.status === "VERIFIED";
-  const paymentDone = ["PAID", "PROCESSING", "READY_FOR_PICKUP", "COMPLETED"].includes(order.status) || payment?.status === "VERIFIED";
-  const packagingDone = ["READY_FOR_PICKUP", "COMPLETED"].includes(order.status);
-  const pickupDone = ["READY_FOR_PICKUP", "COMPLETED"].includes(order.status);
+  const paymentDone = ["PAID", "PROCESSING", "READY_FOR_PICKUP", "COMPLETED"].includes(orderStatus) || payment?.status === "VERIFIED";
+  const packagingDone = ["READY_FOR_PICKUP", "COMPLETED"].includes(orderStatus);
+  const pickupDone = ["READY_FOR_PICKUP", "COMPLETED"].includes(orderStatus);
 
   const steps = [
     {
@@ -61,7 +79,9 @@ const getOrderPhase = (order = {}, prescription = null, payment = null) => {
     {
       key: "payment",
       label: "Pembayaran",
-      detail: payment?.status === "VERIFIED"
+      detail: paymentExpired
+        ? "Batas pembayaran 10 menit terlewati. Transaksi dibatalkan."
+        : payment?.status === "VERIFIED"
         ? `Terverifikasi${payment?.verified_at ? ` • ${formatDateTime(payment.verified_at)}` : ""}`
         : paymentWaiting
           ? `Bukti pembayaran sudah dikirim${payment?.proof_uploaded_at ? ` • ${formatDateTime(payment.proof_uploaded_at)}` : ""}`
@@ -70,7 +90,7 @@ const getOrderPhase = (order = {}, prescription = null, payment = null) => {
           : paymentDone
             ? "Selesai"
             : "Belum dibuka",
-      state: paymentVerified || paymentDone ? "done" : paymentWaiting || paymentReady ? "active" : "idle"
+      state: paymentExpired ? "error" : paymentVerified || paymentDone ? "done" : paymentWaiting || paymentReady ? "active" : "idle"
     },
     {
       key: "packaging",
@@ -96,6 +116,9 @@ const getOrderPhase = (order = {}, prescription = null, payment = null) => {
     return steps;
   }
 
+  const uploadCompleted = ["PRESCRIPTION_REVIEW", "PENDING_PAYMENT", "PAID", "PROCESSING", "READY_FOR_PICKUP", "COMPLETED"].includes(orderStatus) || prescriptionUploaded || prescriptionVerified;
+  const uploadRetryNeeded = prescriptionRejected && orderStatus === "WAITING_PRESCRIPTION";
+
   const prescriptionStep = {
     key: "prescription",
     label: "Verifikasi Resep",
@@ -105,19 +128,21 @@ const getOrderPhase = (order = {}, prescription = null, payment = null) => {
         ? "Sudah dipakai untuk satu transaksi"
         : prescriptionRejected
           ? `Ditolak${prescription?.uploaded_at ? ` • diunggah ${formatDateTime(prescription.uploaded_at)}` : ""}`
-          : prescriptionUploaded
+          : prescriptionUploaded || prescriptionWorkflowStarted
             ? `Menunggu verifikasi apoteker${prescription?.uploaded_at ? ` • diunggah ${formatDateTime(prescription.uploaded_at)}` : ""}`
             : "Menunggu upload resep",
-    state: prescriptionRejected ? "error" : prescriptionVerified ? "done" : prescriptionUploaded ? "active" : "idle"
+    state: prescriptionRejected ? "error" : prescriptionVerified ? "done" : (uploadCompleted || prescriptionWorkflowStarted) ? "active" : "idle"
   };
 
   const uploadStep = {
     key: "upload_prescription",
     label: "Upload Resep",
-    detail: prescriptionUploaded
-      ? `Resep sudah diunggah${prescription?.uploaded_at ? ` • ${formatDateTime(prescription.uploaded_at)}` : ""}`
-      : "Unggah resep dokter setelah pesanan dibuat",
-    state: prescriptionUploaded ? "done" : "active"
+    detail: uploadRetryNeeded
+      ? "Resep ditolak. Upload ulang resep dokter."
+      : uploadCompleted
+        ? `Resep sudah diunggah${prescription?.uploaded_at ? ` • ${formatDateTime(prescription.uploaded_at)}` : ""}`
+        : "Unggah resep dokter setelah pesanan dibuat",
+    state: uploadRetryNeeded ? "active" : uploadCompleted ? "done" : "active"
   };
 
   return [steps[0], uploadStep, prescriptionStep, ...steps.slice(1)];
@@ -132,7 +157,7 @@ function OrderStepper({ order, prescription, payment }) {
           <p className="text-xs font-bold uppercase text-muted">Alur Pesanan</p>
           <h3 className="text-xl font-extrabold text-primary">Tracking dari checkout sampai selesai</h3>
         </div>
-        <StatusBadge status={order?.status} />
+        <StatusBadge status={getOrderBadgeStatus(order, prescription, payment)} />
       </div>
       <div className="space-y-4">
         {steps.map((step, index) => {
@@ -368,7 +393,7 @@ export function CheckoutPage() {
     <form onSubmit={submit}>
       <PageHeader
         title="Checkout"
-        subtitle={needsPrescriptionFlow ? "Pesanan obat resep akan masuk ke alur upload dan verifikasi resep terlebih dahulu." : "Pesanan hanya diproses untuk ambil di klinik."}
+        subtitle={needsPrescriptionFlow ? "Pesanan obat resep akan masuk ke alur upload dan verifikasi resep terlebih dahulu." : "Pesanan dibuat terlebih dahulu. Stok baru diproses setelah bukti pembayaran diverifikasi admin."}
         action={<Link className="btn-secondary" to="/pasien/cart"><FiArrowLeft /> Kembali ke Keranjang</Link>}
       />
       <div className="grid gap-6 lg:grid-cols-3">
@@ -378,7 +403,7 @@ export function CheckoutPage() {
             <div className="rounded-2xl bg-primary-soft p-4 text-sm text-primary">
               {needsPrescriptionFlow
                 ? "Pesanan obat resep akan dibuat dulu, lalu statusnya menunggu upload resep dan verifikasi apoteker sebelum pembayaran."
-                : "Pesanan diambil di Klinik Makmur Jaya setelah statusnya Siap Diambil."}
+                : "Pesanan dibuat terlebih dahulu. Stok baru diproses setelah bukti pembayaran diverifikasi admin."}
             </div>
             <label className="mt-5 block text-sm font-bold text-muted">
               Catatan pesanan (opsional)
@@ -390,9 +415,9 @@ export function CheckoutPage() {
             <h3 className="mb-4 flex items-center gap-2 text-xl font-extrabold text-primary"><FiCreditCard /> Metode Pembayaran</h3>
             <div className="grid gap-3">
               {[
-                ["BANK_TRANSFER", "Transfer Bank", "Upload bukti transfer setelah pesanan dibuat."],
-                ["EWALLET", "E-Wallet", "Upload bukti pembayaran setelah pesanan dibuat."],
-                ["QRIS", "QRIS", "Upload bukti pembayaran setelah pesanan dibuat."]
+                ["BANK_TRANSFER", "Transfer Bank", "Upload bukti transfer setelah pesanan dibuat. Stok diproses setelah verifikasi."],
+                ["EWALLET", "E-Wallet", "Upload bukti pembayaran setelah pesanan dibuat. Stok diproses setelah verifikasi."],
+                ["QRIS", "QRIS", "Upload bukti pembayaran setelah pesanan dibuat. Stok diproses setelah verifikasi."]
               ].map(([value, label, description]) => (
                 <label key={value} className={`flex cursor-pointer gap-3 rounded-2xl border p-4 ${paymentMethod === value ? "border-primary bg-primary-soft" : "border-outline bg-white"}`}>
                   <input type="radio" name="payment" value={value} checked={paymentMethod === value} onChange={() => setPaymentMethod(value)} />
@@ -489,6 +514,7 @@ export function CheckoutSuccessPage() {
     verified_at: order.verified_at,
     rejection_reason: order.rejection_reason
   } : null;
+  const paymentExpired = ["CANCELLED", "EXPIRED"].includes(String(order?.status || "").toUpperCase()) || String(payment?.status || "").toUpperCase() === "EXPIRED";
   const needsPrescription = requiresPrescription(order);
   const canPay = order?.status === "PENDING_PAYMENT" && isOnlinePayment(paymentMethod) && ["PENDING", "REJECTED"].includes(paymentStatus);
   const prescriptionStatus = prescription?.status || order?.status || "PENDING";
@@ -512,6 +538,11 @@ export function CheckoutSuccessPage() {
         <div className="mx-auto mt-6 inline-flex rounded-full bg-surface-low px-4 py-2 text-sm font-bold text-primary">
           {syncing ? "Memuat status terbaru..." : "Status diperbarui otomatis"}
         </div>
+        {paymentExpired && (
+          <div className="mx-auto mt-6 max-w-2xl rounded-2xl border border-danger/20 bg-danger-soft p-4 text-sm font-semibold text-danger">
+            Batas pembayaran 10 menit terlewati. Transaksi dibatalkan dan pesanan tidak dapat dilanjutkan.
+          </div>
+        )}
         <div className="mx-auto mt-8 grid max-w-xl gap-3 rounded-2xl bg-surface-low p-5 text-left sm:grid-cols-2">
           <div><p className="text-xs font-bold uppercase text-muted">Total</p><p className="mt-1 text-xl font-extrabold text-primary">{rupiah(order?.total_amount)}</p></div>
           <div><p className="text-xs font-bold uppercase text-muted">Status</p><div className="mt-2"><StatusBadge status={order?.status} /></div></div>
@@ -531,10 +562,11 @@ export function CheckoutSuccessPage() {
           <OrderStepper order={order} prescription={prescription} payment={payment} />
         </div>
         <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-          {needsPrescription && (!prescription || prescription?.status === "REJECTED") && <Link className="btn-primary" to={`/pasien/prescriptions/upload?order_id=${id}`}><FiClipboard /> Upload Resep</Link>}
-          {needsPrescription && prescription?.file_url && prescription?.status !== "APPROVED" && <Link className="btn-primary" to={`/pasien/checkout/success/${id}`}><FiClipboard /> Lihat Verifikasi</Link>}
+          {!paymentExpired && needsPrescription && (!prescription || prescription?.status === "REJECTED") && <Link className="btn-primary" to={`/pasien/prescriptions/upload?order_id=${id}`}><FiClipboard /> Upload Resep</Link>}
+          {!paymentExpired && needsPrescription && prescription?.file_url && prescription?.status !== "APPROVED" && <Link className="btn-primary" to={`/pasien/checkout/success/${id}`}><FiClipboard /> Lihat Verifikasi</Link>}
           {paymentStatus === "WAITING_VERIFICATION" && <span className="inline-flex items-center justify-center rounded-full bg-warning-soft px-4 py-3 text-sm font-bold text-warning">Menunggu verifikasi pembayaran admin</span>}
-          {canPay && <Link className="btn-primary" to={`/pasien/orders/${id}/payment`}><FiCreditCard /> Lanjut Pembayaran</Link>}
+          {!paymentExpired && canPay && <Link className="btn-primary" to={`/pasien/orders/${id}/payment`}><FiCreditCard /> Lanjut Pembayaran</Link>}
+          {paymentExpired && <Link className="btn-secondary" to="/pasien/orders"><FiClipboard /> Lihat Pesanan Saya</Link>}
           <Link className="btn-secondary" to={`/pasien/orders/${id}`}><FiPackage /> Lihat Detail Pesanan</Link>
         </div>
       </section>
@@ -583,6 +615,7 @@ export function PaymentPage() {
     verified_at: order.verified_at,
     rejection_reason: order.rejection_reason
   } : null;
+  const paymentExpired = ["CANCELLED", "EXPIRED"].includes(String(order?.status || "").toUpperCase()) || String(payment?.status || "").toUpperCase() === "EXPIRED";
   const proofAlreadySent = Boolean(payment?.proof_uploaded_at || payment?.proof_file_url) || ["WAITING_VERIFICATION", "VERIFIED", "REJECTED"].includes(payment?.status);
   const uploadProof = async (event) => {
     event.preventDefault();
@@ -628,7 +661,7 @@ export function PaymentPage() {
     );
   }
 
-  if (order && order.status !== "PENDING_PAYMENT") {
+  if (order && order.status !== "PENDING_PAYMENT" && !paymentExpired) {
     return (
       <div className="mx-auto max-w-3xl">
         <PageHeader title="Pembayaran Belum Dibuka" subtitle={`Pesanan ${order?.order_number || id} masih menunggu verifikasi pembayaran.`} action={<Link className="btn-secondary" to={`/pasien/orders/${id}`}><FiArrowLeft /> Detail Pesanan</Link>} />
@@ -637,6 +670,19 @@ export function PaymentPage() {
           <h2 className="mt-6 text-2xl font-extrabold text-primary">Pembayaran menunggu verifikasi admin</h2>
           <p className="mt-3 text-muted">Halaman ini akan terbuka otomatis setelah pesanan masuk ke status <b>PENDING_PAYMENT</b> dan bukti pembayaran siap diverifikasi.</p>
           <Link className="btn-secondary mt-6" to={`/pasien/orders/${id}`}>Lihat Detail Pesanan</Link>
+        </section>
+      </div>
+    );
+  }
+  if (paymentExpired) {
+    return (
+      <div className="mx-auto max-w-3xl">
+        <PageHeader title="Pembayaran Kedaluwarsa" subtitle={`Pesanan ${order?.order_number || id} dibatalkan karena melewati batas pembayaran.`} action={<Link className="btn-secondary" to="/pasien/orders"><FiArrowLeft /> Pesanan Saya</Link>} />
+        <section className="glass-card p-8 text-center">
+          <StatusBadge status={payment?.status || order?.status || "EXPIRED"} />
+          <h2 className="mt-6 text-2xl font-extrabold text-primary">Transaksi gagal</h2>
+          <p className="mt-3 text-muted">Batas pembayaran 10 menit terlewati. Pesanan sudah dibatalkan dan stok tetap aman karena belum diproses.</p>
+          <Link className="btn-secondary mt-6" to="/pasien/orders">Lihat Pesanan Saya</Link>
         </section>
       </div>
     );
@@ -655,7 +701,7 @@ export function PaymentPage() {
             <InfoRow label="Status" value={<StatusBadge status={payment?.status} />} />
           </div>
           <div className="mt-6 rounded-2xl bg-primary-soft p-4 text-sm text-primary">
-            Lakukan pembayaran sesuai metode yang dipilih, lalu upload gambar bukti pembayaran pada formulir.
+            Lakukan pembayaran sesuai metode yang dipilih, lalu upload gambar bukti pembayaran pada formulir. Stok diproses setelah admin memverifikasi bukti pembayaran.
           </div>
         </section>
         <form className="glass-card p-6" onSubmit={uploadProof}>
@@ -685,7 +731,17 @@ export function OrdersPage({ title = "Pesanan Saya", subtitle = "Lacak dan kelol
       ) : (
         <div className="grid gap-5 xl:grid-cols-2">
           {rows.map((order) => {
-            const orderSteps = getOrderPhase(order);
+            const prescription = null;
+            const payment = {
+              method: order.payment_method,
+              status: order.payment_status,
+              payment_number: order.payment_number,
+              proof_file_url: order.proof_file_url,
+              proof_uploaded_at: order.proof_uploaded_at,
+              verified_at: order.verified_at,
+              rejection_reason: order.rejection_reason
+            };
+            const orderSteps = getOrderPhase(order, prescription, payment);
             const activeStep = orderSteps.find((step) => step.state === "active") || orderSteps.find((step) => step.state === "done") || orderSteps[0];
             return (
               <article key={order.id} className="glass-card overflow-hidden border border-outline/60 p-6 shadow-sm transition hover:-translate-y-0.5">
@@ -696,7 +752,7 @@ export function OrdersPage({ title = "Pesanan Saya", subtitle = "Lacak dan kelol
                     <p className="mt-2 text-sm text-muted">{formatDate(order.checkout_at)} • Ambil di klinik</p>
                   </div>
                   <div className="text-right">
-                    <StatusBadge status={order.status} />
+                    <StatusBadge status={getOrderBadgeStatus(order, prescription, payment)} />
                     <p className="mt-3 text-xl font-extrabold text-primary">{rupiah(order.total_amount)}</p>
                   </div>
                 </div>
@@ -787,6 +843,7 @@ export function OrderDetail() {
   } : null;
   const canUploadPayment = order.status === "PENDING_PAYMENT" && isOnlinePayment(payment?.method) && payment?.status === "PENDING" && !payment?.proof_uploaded_at && !payment?.proof_file_url;
   const canUploadPrescription = order.status === "WAITING_PRESCRIPTION" && !prescription?.file_url;
+  const badgeStatus = getOrderBadgeStatus(order, prescription, payment);
 
   return (
     <>
@@ -797,7 +854,7 @@ export function OrderDetail() {
           <section className="glass-card p-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h3 className="text-2xl font-extrabold text-primary">#{order.order_number}</h3>
-              <StatusBadge status={order.status} />
+              <StatusBadge status={badgeStatus} />
             </div>
             <div className="mt-6 space-y-4">
               {(order.items || []).map((item) => (

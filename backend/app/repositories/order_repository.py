@@ -50,10 +50,15 @@ class OrderRepository(BaseRepository[Order]):
         ).unique().scalar_one_or_none()
 
     def list_latest(self, limit: int = 10, order_type: str | None = None) -> list[Order]:
-        stmt = select(Order).order_by(Order.created_at.desc()).limit(limit)
+        stmt = (
+            select(Order)
+            .options(joinedload(Order.items), joinedload(Order.payments))
+            .order_by(Order.created_at.desc())
+            .limit(limit)
+        )
         if order_type:
             stmt = stmt.where(Order.order_type == order_type)
-        return list(self.db.scalars(stmt))
+        return list(self.db.execute(stmt).unique().scalars().all())
 
     def add_item(self, item: OrderItem) -> OrderItem:
         return self.add(item)

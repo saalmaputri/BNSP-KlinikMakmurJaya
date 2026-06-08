@@ -34,30 +34,29 @@ class CheckoutService:
         if requires_prescription and not self._has_approved_prescription(user_id):
             raise AppException("Resep harus diverifikasi apoteker sebelum checkout", "PRESCRIPTION_NOT_APPROVED")
         try:
+            self._ensure_stock_available(cart)
             order = self._create_order(user_id, None, "ONLINE", payload.fulfillment_method, payload.shipping_address, payload.notes)
             subtotal = Decimal("0")
             for cart_item in cart.items:
                 medicine = cart_item.medicine
                 if not medicine:
                     raise NotFoundException("Data obat pada keranjang tidak ditemukan")
-                selected_batches = self.fifo.reserve_stock(medicine.id, cart_item.quantity, order.id, user_id)
-                for batch, qty in selected_batches:
-                    line_total = medicine.selling_price * qty
-                    subtotal += line_total
-                    self.order_repo.add_item(
-                        OrderItem(
-                            order_id=order.id,
-                            medicine_id=medicine.id,
-                            medicine_batch_id=batch.id,
-                            medicine_sku_snapshot=medicine.sku,
-                            medicine_name_snapshot=medicine.name,
-                            batch_number_snapshot=batch.batch_number,
-                            expired_date_snapshot=batch.expired_date,
-                            quantity=qty,
-                            unit_price=medicine.selling_price,
-                            line_total=line_total,
-                        )
+                line_total = medicine.selling_price * cart_item.quantity
+                subtotal += line_total
+                self.order_repo.add_item(
+                    OrderItem(
+                        order_id=order.id,
+                        medicine_id=medicine.id,
+                        medicine_batch_id=None,
+                        medicine_sku_snapshot=medicine.sku,
+                        medicine_name_snapshot=medicine.name,
+                        batch_number_snapshot=None,
+                        expired_date_snapshot=None,
+                        quantity=cart_item.quantity,
+                        unit_price=medicine.selling_price,
+                        line_total=line_total,
                     )
+                )
             order.subtotal = subtotal
             order.shipping_cost = Decimal("0") if payload.fulfillment_method == "PICKUP" else Decimal("10000")
             order.total_amount = order.subtotal + order.shipping_cost
@@ -71,8 +70,6 @@ class CheckoutService:
             order.proof_uploaded_at = payment.proof_uploaded_at
             order.verified_at = payment.verified_at
             order.rejection_reason = payment.rejection_reason
-            if requires_prescription:
-                self.prescriptions.consume_approved(user_id)
             cart.status = "CHECKED_OUT"
             try:
                 self.notifications.create(
@@ -104,6 +101,15 @@ class CheckoutService:
 
     def _has_approved_prescription(self, patient_id: UUID) -> bool:
         return self.prescriptions.has_approved(patient_id)
+
+    def _ensure_stock_available(self, cart) -> None:
+        stock_map = {row["medicine_id"]: int(row["current_stock"] or 0) for row in self.fifo.repo.list_stocks()}
+        requested: dict[UUID, int] = {}
+        for item in cart.items:
+            requested[item.medicine_id] = requested.get(item.medicine_id, 0) + int(item.quantity or 0)
+        for medicine_id, quantity in requested.items():
+            if quantity > int(stock_map.get(medicine_id, 0) or 0):
+                raise AppException("Stok obat tidak mencukupi", "INSUFFICIENT_STOCK")
 
     def checkout_offline(self, cashier_id: UUID, payload: OfflineCheckoutRequest) -> Order:
         try:
