@@ -1,6 +1,6 @@
 # Klinik Makmur Jaya
 
-Sistem E-Commerce Penjualan Obat Klinik Makmur Jaya berbasis web.
+Sistem E-Commerce Penjualan Obat Klinik Makmur Jaya berbasis web..
 
 ## Pendahuluan
 
